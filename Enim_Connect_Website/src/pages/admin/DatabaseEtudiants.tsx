@@ -399,6 +399,7 @@ function ImportEtudiantsModal({ onClose, onImported }: { onClose: () => void; on
                   <span className="text-error">*</span> Colonnes obligatoires : <strong>nom, prenom, email</strong>.
                   Les colonnes <strong>filiere, departement, niveau</strong> (1A / 2A / 3A) sont optionnelles mais doivent correspondre aux valeurs officielles de l'ENSMR.
                   Séparateur virgule ou point-virgule, encodage UTF-8.
+                  Les profils en <strong>doublon</strong> (email déjà existant) sont ignorés ; seuls les nouveaux sont créés.
                 </p>
               </div>
 
@@ -426,78 +427,86 @@ function ImportEtudiantsModal({ onClose, onImported }: { onClose: () => void; on
             </>
           )}
 
-          {/* Résultat — échec (tout-ou-rien : rien n'a été créé) */}
-          {aEchoue && (
-            <div>
-              <div className="p-4 bg-error/5 border border-error/20 rounded-xl mb-4">
-                <p className="text-sm text-on-surface font-medium">
-                  Aucun compte n'a été créé. {result!.erreurs.length} ligne(s) à corriger (import tout-ou-rien).
+          {/* Résultat de l'import : créés + refusés affichés ensemble */}
+          {result && (
+            <div className="space-y-4">
+              {/* Bandeau récapitulatif */}
+              <div className={`p-4 rounded-xl border flex items-center gap-3 ${
+                aReussi ? "bg-green-50 border-green-200" : "bg-error/5 border-error/20"
+              }`}>
+                <span className={`material-symbols-outlined ${aReussi ? "text-green-600" : "text-error"}`}>
+                  {aReussi ? "check_circle" : "info"}
+                </span>
+                <p className="text-sm font-medium text-on-surface">
+                  {result.crees.length} compte(s) créé(s)
+                  {aEchoue && ` · ${result.erreurs.length} profil(s) refusé(s)`}
                 </p>
               </div>
-              <div className="rounded-xl border border-outline-variant overflow-hidden max-h-72 overflow-y-auto">
-                <table className="w-full text-xs">
-                  <thead className="sticky top-0">
-                    <tr className="bg-surface-container">
-                      <th className="text-left px-3 py-2 font-semibold text-on-surface-variant">Ligne</th>
-                      <th className="text-left px-3 py-2 font-semibold text-on-surface-variant">Email</th>
-                      <th className="text-left px-3 py-2 font-semibold text-on-surface-variant">Problème</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-outline-variant">
-                    {result!.erreurs.map((er, i) => (
-                      <tr key={i}>
-                        <td className="px-3 py-2 text-on-surface-variant">{er.ligne}</td>
-                        <td className="px-3 py-2 text-on-surface-variant">{er.email || "—"}</td>
-                        <td className="px-3 py-2 text-error">{er.raison}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="flex gap-3 mt-5">
-                <button onClick={() => { setResult(null); setFile(null); }} className="flex-1 btn-ghost">Réessayer</button>
-                <button onClick={onClose} className="flex-1 btn-primary justify-center">Fermer</button>
-              </div>
-            </div>
-          )}
 
-          {/* Résultat — succès */}
-          {aReussi && (
-            <div>
-              <div className="p-4 bg-green-50 border border-green-200 rounded-xl mb-4 flex items-center gap-3">
-                <span className="material-symbols-outlined text-green-600">check_circle</span>
-                <p className="text-sm text-green-700 font-medium">{result!.crees.length} compte(s) étudiant créé(s) avec succès.</p>
-              </div>
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl mb-4">
-                <p className="text-xs text-amber-800">
-                  Téléchargez les identifiants <strong>maintenant</strong> : les mots de passe ne pourront plus être récupérés après fermeture.
-                </p>
-              </div>
-              <div className="rounded-xl border border-outline-variant overflow-hidden max-h-60 overflow-y-auto mb-4">
-                <table className="w-full text-xs">
-                  <thead className="sticky top-0">
-                    <tr className="bg-surface-container">
-                      <th className="text-left px-3 py-2 font-semibold text-on-surface-variant">Email</th>
-                      <th className="text-left px-3 py-2 font-semibold text-on-surface-variant">Mot de passe</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-outline-variant">
-                    {result!.crees.map((c, i) => (
-                      <tr key={i}>
-                        <td className="px-3 py-2 text-on-surface-variant">{c.email}</td>
-                        <td className="px-3 py-2 font-mono text-on-surface select-all">{c.mot_de_passe}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="flex gap-3">
-                <button onClick={telechargerIdentifiants}
-                  className="flex-1 flex items-center justify-center gap-2 btn-primary">
-                  <span className="material-symbols-outlined text-base">download</span>
-                  Télécharger les identifiants (CSV)
-                </button>
-                <button onClick={onClose} className="flex-1 btn-ghost">Fermer</button>
+              {/* Profils créés */}
+              {aReussi && (
+                <div>
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl mb-3">
+                    <p className="text-xs text-amber-800">
+                      Téléchargez les identifiants <strong>maintenant</strong> : les mots de passe ne pourront plus être récupérés après fermeture.
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-outline-variant overflow-hidden max-h-52 overflow-y-auto">
+                    <table className="w-full text-xs">
+                      <thead className="sticky top-0">
+                        <tr className="bg-surface-container">
+                          <th className="text-left px-3 py-2 font-semibold text-on-surface-variant">Email (créé)</th>
+                          <th className="text-left px-3 py-2 font-semibold text-on-surface-variant">Mot de passe</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-outline-variant">
+                        {result.crees.map((c, i) => (
+                          <tr key={i}>
+                            <td className="px-3 py-2 text-on-surface-variant">{c.email}</td>
+                            <td className="px-3 py-2 font-mono text-on-surface select-all">{c.mot_de_passe}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <button onClick={telechargerIdentifiants}
+                    className="mt-3 w-full flex items-center justify-center gap-2 btn-primary">
+                    <span className="material-symbols-outlined text-base">download</span>
+                    Télécharger les identifiants (CSV)
+                  </button>
+                </div>
+              )}
+
+              {/* Profils refusés */}
+              {aEchoue && (
+                <div>
+                  <p className="text-sm font-semibold text-on-surface mb-2">Profils refusés (non importés)</p>
+                  <div className="rounded-xl border border-outline-variant overflow-hidden max-h-52 overflow-y-auto">
+                    <table className="w-full text-xs">
+                      <thead className="sticky top-0">
+                        <tr className="bg-surface-container">
+                          <th className="text-left px-3 py-2 font-semibold text-on-surface-variant">Ligne</th>
+                          <th className="text-left px-3 py-2 font-semibold text-on-surface-variant">Email</th>
+                          <th className="text-left px-3 py-2 font-semibold text-on-surface-variant">Motif</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-outline-variant">
+                        {result.erreurs.map((er, i) => (
+                          <tr key={i}>
+                            <td className="px-3 py-2 text-on-surface-variant">{er.ligne}</td>
+                            <td className="px-3 py-2 text-on-surface-variant">{er.email || "—"}</td>
+                            <td className="px-3 py-2 text-error">{er.raison}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-1">
+                <button onClick={() => { setResult(null); setFile(null); }} className="flex-1 btn-ghost">Importer un autre fichier</button>
+                <button onClick={onClose} className="flex-1 btn-primary justify-center">Fermer</button>
               </div>
             </div>
           )}

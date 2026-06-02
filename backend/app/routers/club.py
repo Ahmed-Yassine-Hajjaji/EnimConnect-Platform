@@ -612,8 +612,9 @@ async def import_etudiants(
     """
     Import en masse d'étudiants depuis un fichier CSV.
     Colonnes : nom, prenom, email, filiere, departement, niveau (+ telephone optionnel).
-    Validation tout-ou-rien : si UNE ligne est invalide, AUCUN compte n'est créé.
-    Renvoie {crees: [...avec mot_de_passe...], erreurs: [...]}.
+    Seuls les nouveaux profils valides sont créés ; les doublons (email déjà en base
+    ou répété dans le fichier) et les lignes invalides sont rejetés et listés.
+    Renvoie {crees: [...avec mot_de_passe...], erreurs: [...avec raison...]}.
     """
     if not (file.filename or "").lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Le fichier doit être au format CSV (.csv)")
@@ -707,11 +708,9 @@ async def import_etudiants(
             "niveau": niveau or None,
         })
 
-    # Tout-ou-rien : la moindre erreur annule tout l'import
-    if erreurs:
-        return {"crees": [], "erreurs": erreurs}
-
-    if not valides:
+    # On crée uniquement les nouveaux profils valides ; les doublons et lignes
+    # invalides sont rejetés et renvoyés dans `erreurs`.
+    if not valides and not erreurs:
         raise HTTPException(status_code=400, detail="Aucune ligne d'étudiant exploitable dans le fichier.")
 
     crees: List[dict] = []
@@ -736,7 +735,7 @@ async def import_etudiants(
         crees.append({**v, "mot_de_passe": mot_de_passe})
 
     db.commit()
-    return {"crees": crees, "erreurs": []}
+    return {"crees": crees, "erreurs": erreurs}
 
 
 # ─── Suppression en masse ──────────────────────────────────────────────────────
