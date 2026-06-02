@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, B
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models.user import User
+from app.models.user import User, RoleEnum
 from app.models.etudiant import Etudiant
 from app.models.cv import CV
 from app.models.candidature import Candidature
@@ -19,6 +19,8 @@ from app.config import settings
 from app.limiter import limiter
 
 router = APIRouter(prefix="/etudiants", tags=["Étudiants"])
+
+MAX_CV_SIZE = 10 * 1024 * 1024  # 10 Mo
 
 
 @router.get("/me", response_model=EtudiantOut)
@@ -99,6 +101,14 @@ def upload_cv(
             detail="L'analyse IA est requise pour activer le matching. Veuillez accepter le consentement.",
         )
 
+    # Validation renforcée : taille bornée + vérification réelle des octets magiques PDF
+    # (le content_type déclaré par le client n'est pas fiable).
+    contents = file.file.read(MAX_CV_SIZE + 1)
+    if len(contents) > MAX_CV_SIZE:
+        raise HTTPException(status_code=413, detail=f"Fichier trop volumineux (max {MAX_CV_SIZE // (1024*1024)} Mo)")
+    if not contents.startswith(b"%PDF-"):
+        raise HTTPException(status_code=400, detail="Fichier PDF invalide ou corrompu")
+
     cvs_dir = os.path.join(settings.STORAGE_PATH, "cvs")
     os.makedirs(cvs_dir, exist_ok=True)
 
@@ -106,7 +116,7 @@ def upload_cv(
     path = os.path.join(cvs_dir, filename)
 
     with open(path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+        f.write(contents)
 
     existing_cv = db.query(CV).filter(CV.etudiant_id == current_user.id).first()
     if existing_cv:
@@ -187,12 +197,25 @@ def get_cv_file(
 ):
     """
     Sert le CV PDF d'un étudiant de façon sécurisée (JWT requis).
-    Accessible par : l'étudiant lui-même, entreprises validées, club.
+    Accessible uniquement par : l'étudiant lui-même, une entreprise validée, ou le club.
     """
     try:
         uid = uuid.UUID(etudiant_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="ID invalide")
+
+    # Contrôle d'accès : on n'autorise pas n'importe quel utilisateur connecté.
+    if current_user.role == RoleEnum.club:
+        pass
+    elif current_user.role == RoleEnum.etudiant:
+        if current_user.id != uid:
+            raise HTTPException(status_code=403, detail="Accès refusé")
+    elif current_user.role == RoleEnum.entreprise:
+        entreprise = db.query(Entreprise).filter(Entreprise.id == current_user.id).first()
+        if not entreprise or not entreprise.valide:
+            raise HTTPException(status_code=403, detail="Accès refusé")
+    else:
+        raise HTTPException(status_code=403, detail="Accès refusé")
 
     cv = db.query(CV).filter(CV.etudiant_id == uid).first()
     if not cv:
@@ -206,4 +229,5 @@ def get_cv_file(
         path=cv_path,
         media_type="application/pdf",
         filename=f"cv_{etudiant_id}.pdf",
+        headers={"X-Content-Type-Options": "nosniff"},
     )
