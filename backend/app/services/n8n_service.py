@@ -100,6 +100,14 @@ async def send_company_decision_webhook(
         "departements_en_attente": ["Département Génie Industriel"]
     }
     """
+    # Phase de test : rediriger la notification vers une adresse unique si configurée
+    if settings.COMPANY_EMAIL_OVERRIDE:
+        logger.info(
+            "[n8n] COMPANY_EMAIL_OVERRIDE actif : %s -> %s",
+            email_entreprise, settings.COMPANY_EMAIL_OVERRIDE,
+        )
+        email_entreprise = settings.COMPANY_EMAIL_OVERRIDE
+
     payload = {
         "email_entreprise": email_entreprise,
         "nom_entreprise": nom_entreprise,

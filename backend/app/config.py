@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     N8N_SMTP_SENDER: str = "noreply@enimconnect.ma"
     N8N_SMTP_SSL: bool = False
 
+    # Phase de test : si renseigné, TOUTES les notifications de décision destinées
+    # aux entreprises sont redirigées vers cette adresse (au lieu de l'email réel
+    # de l'entreprise), comme les CHEF_*_EMAIL pour les chefs. Laisser vide en prod.
+    COMPANY_EMAIL_OVERRIDE: str = ""
+
     # Emails des chefs de département (configurables depuis .env)
     CHEF_INFO_EMAIL: str = ""
     CHEF_MAT_EMAIL: str = ""
