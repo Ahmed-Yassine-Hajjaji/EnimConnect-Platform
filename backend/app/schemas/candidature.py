@@ -31,6 +31,7 @@ class CandidatOut(BaseModel):
     photo_url: Optional[str] = None
     cv_url: Optional[str] = None
     description_cv: Optional[str] = None
+    match_competences: List[str] = []  # compétences en correspondance avec l'offre
     date_candidature: datetime
 
     @field_serializer("etudiant_id")

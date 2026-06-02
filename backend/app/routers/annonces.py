@@ -18,7 +18,7 @@ from app.services.notification_service import create_notification
 router = APIRouter(prefix="/annonces", tags=["Annonces"])
 
 
-def _build_annonce_out(annonce: Annonce, entreprises_map: dict) -> AnnonceOut:
+def _build_annonce_out(annonce: Annonce, entreprises_map: dict, match=None) -> AnnonceOut:
     entreprise = entreprises_map.get(annonce.entreprise_id)
     return AnnonceOut(
         id=str(annonce.id),
@@ -32,6 +32,7 @@ def _build_annonce_out(annonce: Annonce, entreprises_map: dict) -> AnnonceOut:
         created_at=annonce.created_at,
         nom_entreprise=entreprise.nom_entreprise if entreprise else None,
         ville=entreprise.ville if entreprise else None,
+        match_competences=match or None,
     )
 
 
@@ -68,26 +69,27 @@ def list_annonces(
                     AnnonceValidationDept.statut == StatutValidationDept.validee,
                 ).all()
             }
-            sorted_annonces = get_annonces_sorted_by_cv_for_dept(
+            ranked = get_annonces_sorted_by_cv_for_dept(
                 db, current_user.id, validated_annonce_ids
             )
         else:
             # No department set → show all validated (fallback for new students)
-            sorted_annonces = get_annonces_sorted_by_cv(db, current_user.id)
+            ranked = get_annonces_sorted_by_cv(db, current_user.id)
     else:
-        sorted_annonces = (
+        annonces = (
             db.query(Annonce)
             .filter(Annonce.statut == StatutAnnonce.validee, Annonce.is_active == True)
             .all()
         )
+        ranked = [(a, None) for a in annonces]
 
     # Load all entreprises in one query
-    entreprise_ids = list({a.entreprise_id for a in sorted_annonces})
+    entreprise_ids = list({a.entreprise_id for a, _ in ranked})
     entreprises_map = {
         e.id: e for e in db.query(Entreprise).filter(Entreprise.id.in_(entreprise_ids)).all()
     }
 
-    return [_build_annonce_out(a, entreprises_map) for a in sorted_annonces]
+    return [_build_annonce_out(a, entreprises_map, match) for a, match in ranked]
 
 
 @router.get("/{annonce_id}", response_model=AnnonceDetail)

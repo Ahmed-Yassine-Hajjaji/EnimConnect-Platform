@@ -78,6 +78,22 @@ export default function CandidateDetail({ candidat: c }: Props) {
           </div>
         )}
 
+        {/* Pourquoi ce match — compétences requises présentes dans le profil */}
+        {c.match_competences && c.match_competences.length > 0 && (
+          <div className="bg-secondary/5 rounded-2xl p-5 border border-secondary/20">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="material-symbols-outlined text-secondary text-lg">join_inner</span>
+              <h3 className="font-semibold text-on-surface text-sm">Pourquoi ce match</h3>
+            </div>
+            <p className="text-xs text-on-surface-variant mb-2">Compétences requises présentes dans le profil :</p>
+            <div className="flex flex-wrap gap-2">
+              {c.match_competences.map((s) => (
+                <span key={s} className="text-xs bg-secondary/15 text-secondary px-2.5 py-1 rounded-lg font-semibold">{s}</span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Skills */}
         {c.competences.length > 0 && (
           <div>

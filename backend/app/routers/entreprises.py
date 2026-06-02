@@ -246,7 +246,7 @@ def get_candidatures(
 
     sorted_results = get_candidats_sorted_by_annonce(db, annonce.id)
     result = []
-    for cand, etudiant, cv in sorted_results:
+    for cand, etudiant, cv, matched in sorted_results:
         if not etudiant:
             continue
         user = db.query(User).filter(User.id == etudiant.id).first()
@@ -262,6 +262,7 @@ def get_candidatures(
                 photo_url=etudiant.photo_url,
                 cv_url=f"/api/cv/{etudiant.id}" if cv else None,
                 description_cv=cv.description_ia if cv else None,
+                match_competences=matched or [],
                 date_candidature=cand.date,
             )
         )

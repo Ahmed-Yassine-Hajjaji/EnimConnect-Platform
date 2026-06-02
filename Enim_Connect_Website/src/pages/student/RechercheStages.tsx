@@ -12,6 +12,7 @@ interface Annonce {
   nom_entreprise: string | null;
   ville: string | null;
   created_at: string;
+  match_competences?: string[] | null;
 }
 
 const DUREES = [
@@ -176,6 +177,15 @@ export default function RechercheStages() {
                         <p className="text-sm text-on-surface-variant line-clamp-2">
                           {annonce.description}
                         </p>
+                        {annonce.match_competences && annonce.match_competences.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1.5 mt-3">
+                            <span className="material-symbols-outlined text-secondary text-sm">auto_awesome</span>
+                            <span className="text-xs text-on-surface-variant mr-0.5">Correspond à ton profil :</span>
+                            {annonce.match_competences.map((s) => (
+                              <span key={s} className="text-xs bg-secondary/15 text-secondary px-2 py-0.5 rounded-lg font-semibold">{s}</span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <span className="text-xs text-on-surface-variant sm:ml-4 flex-shrink-0">

@@ -291,6 +291,7 @@ export interface Annonce {
   nom_entreprise?: string;
   ville?: string;
   motif?: string;
+  match_competences?: string[] | null;
   validations_dept?: ValidationDept[];
 }
 
@@ -305,6 +306,7 @@ export interface Candidat {
   photo_url?: string;
   cv_url?: string;
   description_cv?: string;
+  match_competences?: string[];
   date_candidature: string;
 }
 

@@ -1,4 +1,4 @@
-"""Background task: generate and store embedding for a validated annonce."""
+"""Background task: extraction structurée + embedding d'une annonce validée."""
 import uuid
 from datetime import datetime
 from sqlalchemy.orm import Session
@@ -6,6 +6,7 @@ from app.database import SessionLocal
 from app.models.annonce import Annonce
 from app.models.embedding import Embedding, SourceType
 from app.services.embedding_service import generate_embedding
+from app.services.ai_service import analyze_annonce_structured, build_annonce_embedding_text
 
 
 def embed_annonce_background(annonce_id: str) -> None:
@@ -15,7 +16,12 @@ def embed_annonce_background(annonce_id: str) -> None:
         if not annonce:
             return
 
-        text = f"{annonce.titre}\n{annonce.description}"
+        donnees = analyze_annonce_structured(annonce.titre, annonce.description)
+        annonce.donnees_ia = donnees or None
+        db.add(annonce)
+        db.flush()
+
+        text = build_annonce_embedding_text(annonce.titre, annonce.description, donnees)
         vector = generate_embedding(text)
 
         existing = (

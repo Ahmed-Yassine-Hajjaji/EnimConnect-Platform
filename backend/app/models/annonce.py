@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, Integer, Boolean, DateTime, Enum, Text, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID, ARRAY
+from sqlalchemy.dialects.postgresql import UUID, ARRAY, JSONB
 from sqlalchemy.orm import relationship
 from app.database import Base
 import enum
@@ -28,6 +28,7 @@ class Annonce(Base):
     validee_par = Column(UUID(as_uuid=True), ForeignKey("chefs_departement.id"), nullable=True)
     validee_le = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=False, nullable=False)
+    donnees_ia = Column(JSONB, nullable=True)  # {resume, competences_requises[], niveau_requis, domaines[]}
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     entreprise = relationship("Entreprise", back_populates="annonces")

@@ -46,6 +46,7 @@ class AnnonceOut(BaseModel):
     created_at: datetime
     nom_entreprise: Optional[str] = None
     ville: Optional[str] = None
+    match_competences: Optional[List[str]] = None  # compétences en correspondance (explicabilité)
 
     @field_serializer("id", "entreprise_id")
     def serialize_uuid(self, v: UUID) -> str:
