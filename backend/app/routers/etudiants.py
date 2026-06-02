@@ -2,7 +2,7 @@ import os
 import uuid
 import shutil
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User, RoleEnum
@@ -15,6 +15,7 @@ from app.schemas.etudiant import EtudiantUpdate, EtudiantOut, CVOut
 from app.schemas.candidature import CandidatureOut
 from app.middleware.auth_middleware import get_current_etudiant, get_current_user
 from app.tasks.analyze_cv import analyze_cv_background
+from app.services import storage_service
 from app.config import settings
 from app.limiter import limiter
 
@@ -109,14 +110,7 @@ def upload_cv(
     if not contents.startswith(b"%PDF-"):
         raise HTTPException(status_code=400, detail="Fichier PDF invalide ou corrompu")
 
-    cvs_dir = os.path.join(settings.STORAGE_PATH, "cvs")
-    os.makedirs(cvs_dir, exist_ok=True)
-
-    filename = f"{current_user.id}.pdf"
-    path = os.path.join(cvs_dir, filename)
-
-    with open(path, "wb") as f:
-        f.write(contents)
+    path = storage_service.save_cv(str(current_user.id), contents)
 
     existing_cv = db.query(CV).filter(CV.etudiant_id == current_user.id).first()
     if existing_cv:
@@ -221,12 +215,16 @@ def get_cv_file(
     if not cv:
         raise HTTPException(status_code=404, detail="CV introuvable")
 
-    cv_path = os.path.join(settings.STORAGE_PATH, "cvs", f"{etudiant_id}.pdf")
-    if not os.path.exists(cv_path):
+    if not storage_service.cv_exists(etudiant_id):
         raise HTTPException(status_code=404, detail="Fichier CV introuvable")
 
+    # En S3 : on redirige vers une URL présignée courte (le PDF est servi depuis
+    # le domaine S3, ce qui isole le risque XSS de notre domaine).
+    if storage_service.is_s3():
+        return RedirectResponse(url=storage_service.cv_presigned_url(etudiant_id), status_code=307)
+
     return FileResponse(
-        path=cv_path,
+        path=storage_service.local_cv_path(etudiant_id),
         media_type="application/pdf",
         filename=f"cv_{etudiant_id}.pdf",
         headers={"X-Content-Type-Options": "nosniff"},

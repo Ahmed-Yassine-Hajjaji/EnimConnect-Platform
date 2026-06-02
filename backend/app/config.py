@@ -16,6 +16,15 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    # Stockage des CV : "local" (disque) ou "s3" (Amazon S3).
+    STORAGE_BACKEND: str = "local"
+    S3_BUCKET: str = ""
+    AWS_REGION: str = "eu-north-1"
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    # Durée de validité des URL présignées servant les CV (secondes)
+    S3_PRESIGN_EXPIRE: int = 300
+
     # SMTP — utilisé pour les emails transactionnels (ex: réinitialisation mot de passe)
     # Réutilise les variables N8N_SMTP_* déjà présentes dans .env
     N8N_SMTP_HOST: str = "smtp.gmail.com"

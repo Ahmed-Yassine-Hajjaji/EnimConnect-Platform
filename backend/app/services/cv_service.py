@@ -28,6 +28,16 @@ def extract_text_from_pdf(file_path: str) -> str:
     return text.strip()
 
 
+def extract_text_from_pdf_bytes(data: bytes) -> str:
+    """Extraction du texte depuis des octets PDF (sans fichier temporaire) — utile pour S3."""
+    if not data:
+        return ""
+    doc = fitz.open(stream=data, filetype="pdf")
+    text = "".join(page.get_text() for page in doc)
+    doc.close()
+    return text.strip()
+
+
 def generate_cv_description(cv_text: str) -> str:
     if not cv_text:
         return ""

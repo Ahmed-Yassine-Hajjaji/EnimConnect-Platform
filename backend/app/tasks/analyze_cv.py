@@ -10,10 +10,11 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models.cv import CV
 from app.models.embedding import Embedding, SourceType
-from app.services.cv_service import extract_text_from_pdf
+from app.services.cv_service import extract_text_from_pdf_bytes
 from app.services.embedding_service import generate_embedding
 from app.services.ai_service import analyze_cv_structured, build_cv_embedding_text
 from app.services.notification_service import create_notification
+from app.services import storage_service
 
 # Seuil en dessous duquel on considère le PDF comme non exploitable (probablement scanné)
 _MIN_TEXT_LEN = 40
@@ -30,7 +31,8 @@ def analyze_cv_background(cv_id: str) -> None:
         if not cv.consentement_ia:
             return
 
-        text = extract_text_from_pdf(cv.fichier_url)
+        data = storage_service.read_cv(str(cv.etudiant_id))
+        text = extract_text_from_pdf_bytes(data) if data else ""
         if not text or len(text.strip()) < _MIN_TEXT_LEN:
             # PDF probablement scanné / image : aucun texte exploitable
             create_notification(
