@@ -1,14 +1,17 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { api } from "../../api/client";
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
 
+  const [mode, setMode] = useState<"login" | "forgot">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleLogin(e: React.FormEvent) {
@@ -27,6 +30,28 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleForgot(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setInfo(null);
+    setLoading(true);
+    try {
+      const res = await api.forgotPassword(email);
+      setInfo(res.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Une erreur est survenue");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function switchMode(next: "login" | "forgot") {
+    setMode(next);
+    setError(null);
+    setInfo(null);
+    setPassword("");
   }
 
   return (
@@ -69,14 +94,20 @@ export default function LoginPage() {
                 EnimConnect
               </div>
               <div className="text-xs text-on-surface-variant">
-                Plateforme de stages intelligente
+                Plateforme de stages
               </div>
             </div>
           </div>
 
           <div className="mb-6">
-            <h2 className="font-headline font-bold text-xl text-on-surface mb-1">Connexion</h2>
-            <p className="text-sm text-on-surface-variant">Accédez à votre espace personnel</p>
+            <h2 className="font-headline font-bold text-xl text-on-surface mb-1">
+              {mode === "login" ? "Connexion" : "Mot de passe oublié"}
+            </h2>
+            <p className="text-sm text-on-surface-variant">
+              {mode === "login"
+                ? "Accédez à votre espace personnel"
+                : "Saisissez votre adresse email pour recevoir un lien de réinitialisation."}
+            </p>
           </div>
 
           {error && (
@@ -85,60 +116,122 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-on-surface mb-2">
-                Adresse email
-              </label>
-              <div className="flex items-center gap-3 border border-outline-variant rounded-xl px-4 py-3 focus-within:border-primary transition-colors bg-surface-container-low">
-                <span className="material-symbols-outlined text-on-surface-variant text-xl">
-                  mail
-                </span>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="votre@email.com"
-                  required
-                  className="flex-1 bg-transparent text-sm text-on-surface placeholder-on-surface-variant outline-none"
-                />
-              </div>
+          {info && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 text-sm rounded-xl">
+              {info}
             </div>
+          )}
 
-            <div>
-              <label className="block text-sm font-medium text-on-surface mb-2">
-                Mot de passe
-              </label>
-              <div className="flex items-center gap-3 border border-outline-variant rounded-xl px-4 py-3 focus-within:border-primary transition-colors bg-surface-container-low">
-                <span className="material-symbols-outlined text-on-surface-variant text-xl">
-                  lock
-                </span>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  className="flex-1 bg-transparent text-sm text-on-surface placeholder-on-surface-variant outline-none"
-                />
+          {mode === "login" ? (
+            <form onSubmit={handleLogin} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-on-surface mb-2">
+                  Adresse email
+                </label>
+                <div className="flex items-center gap-3 border border-outline-variant rounded-xl px-4 py-3 focus-within:border-primary transition-colors bg-surface-container-low">
+                  <span className="material-symbols-outlined text-on-surface-variant text-xl">
+                    mail
+                  </span>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="votre@email.com"
+                    required
+                    className="flex-1 bg-transparent text-sm text-on-surface placeholder-on-surface-variant outline-none"
+                  />
+                </div>
               </div>
-            </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-gradient-to-r from-primary to-secondary text-white font-semibold py-3 rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-60"
-            >
-              {loading ? (
-                <span className="material-symbols-outlined text-xl animate-spin">
-                  progress_activity
-                </span>
-              ) : (
-                <span className="material-symbols-outlined text-xl">login</span>
-              )}
-              Se connecter
-            </button>
-          </form>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-on-surface">
+                    Mot de passe
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => switchMode("forgot")}
+                    className="text-xs font-medium text-primary hover:underline"
+                  >
+                    Mot de passe oublié ?
+                  </button>
+                </div>
+                <div className="flex items-center gap-3 border border-outline-variant rounded-xl px-4 py-3 focus-within:border-primary transition-colors bg-surface-container-low">
+                  <span className="material-symbols-outlined text-on-surface-variant text-xl">
+                    lock
+                  </span>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    className="flex-1 bg-transparent text-sm text-on-surface placeholder-on-surface-variant outline-none"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-gradient-to-r from-primary to-secondary text-white font-semibold py-3 rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                {loading ? (
+                  <span className="material-symbols-outlined text-xl animate-spin">
+                    progress_activity
+                  </span>
+                ) : (
+                  <span className="material-symbols-outlined text-xl">login</span>
+                )}
+                Se connecter
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleForgot} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-on-surface mb-2">
+                  Adresse email
+                </label>
+                <div className="flex items-center gap-3 border border-outline-variant rounded-xl px-4 py-3 focus-within:border-primary transition-colors bg-surface-container-low">
+                  <span className="material-symbols-outlined text-on-surface-variant text-xl">
+                    mail
+                  </span>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="votre@email.com"
+                    required
+                    className="flex-1 bg-transparent text-sm text-on-surface placeholder-on-surface-variant outline-none"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-gradient-to-r from-primary to-secondary text-white font-semibold py-3 rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                {loading ? (
+                  <span className="material-symbols-outlined text-xl animate-spin">
+                    progress_activity
+                  </span>
+                ) : (
+                  <span className="material-symbols-outlined text-xl">send</span>
+                )}
+                Envoyer le lien
+              </button>
+
+              <button
+                type="button"
+                onClick={() => switchMode("login")}
+                className="w-full text-sm font-medium text-on-surface-variant hover:text-on-surface flex items-center justify-center gap-1"
+              >
+                <span className="material-symbols-outlined text-base">arrow_back</span>
+                Retour à la connexion
+              </button>
+            </form>
+          )}
         </div>
       </div>
     </div>

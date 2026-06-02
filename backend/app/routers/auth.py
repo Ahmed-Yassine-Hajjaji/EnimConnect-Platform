@@ -1,18 +1,25 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.database import get_db
+from app.config import settings
+from app.limiter import limiter
 from app.models.user import User, RoleEnum
 from app.models.etudiant import Etudiant
 from app.models.entreprise import Entreprise
 from app.schemas.user import (
     RegisterRequest, LoginRequest, TokenResponse,
     RefreshRequest, AccessTokenResponse,
+    ForgotPasswordRequest, ResetPasswordRequest,
 )
 from app.services.auth_service import (
     hash_password, verify_password,
     create_access_token, create_refresh_token, decode_token,
 )
+from app.services.token_service import (
+    generate_password_reset_token, verify_password_reset_token,
+)
+from app.services.email_service import send_password_reset_email
 from app.middleware.auth_middleware import get_current_user
 
 
@@ -82,6 +89,62 @@ def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
 
     token_data = {"sub": str(user.id), "role": user.role}
     return AccessTokenResponse(access_token=create_access_token(token_data))
+
+
+@router.post("/forgot-password")
+@limiter.limit("3/hour")
+def forgot_password(
+    request: Request,
+    body: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """
+    Envoie un lien de réinitialisation si un compte actif existe pour cette adresse.
+    Renvoie toujours la même réponse générique pour ne pas révéler l'existence d'un compte.
+    L'envoi se fait en arrière-plan (timing constant, pas de fuite par latence).
+    """
+    user = db.query(User).filter(User.email == body.email).first()
+    if user and user.is_active:
+        token = generate_password_reset_token(str(user.id))
+        reset_link = f"{settings.FRONTEND_URL}/reset-password?token={token}"
+        background_tasks.add_task(send_password_reset_email, user.email, reset_link)
+
+    return {
+        "message": "Si un compte est associé à cette adresse, un email de "
+                   "réinitialisation vient d'être envoyé."
+    }
+
+
+@router.post("/reset-password")
+@limiter.limit("5/hour")
+def reset_password(
+    request: Request,
+    body: ResetPasswordRequest,
+    db: Session = Depends(get_db),
+):
+    user_id = verify_password_reset_token(body.token)
+    if not user_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Lien invalide ou expiré. Veuillez refaire une demande de réinitialisation.",
+        )
+    if len(body.nouveau_mot_de_passe) < 8:
+        raise HTTPException(
+            status_code=400,
+            detail="Le mot de passe doit contenir au moins 8 caractères",
+        )
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=400,
+            detail="Lien invalide ou expiré. Veuillez refaire une demande de réinitialisation.",
+        )
+
+    user.password_hash = hash_password(body.nouveau_mot_de_passe)
+    db.commit()
+    return {"message": "Mot de passe réinitialisé avec succès. Vous pouvez maintenant vous connecter."}
 
 
 @router.post("/logout")

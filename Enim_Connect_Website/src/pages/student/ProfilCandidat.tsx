@@ -77,6 +77,7 @@ export default function ProfilCandidat() {
   const [saving, setSaving] = useState(false);
   const [uploadingCv, setUploadingCv] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
@@ -132,7 +133,11 @@ export default function ProfilCandidat() {
     setUploadingPhoto(true);
     try {
       const res = await api.uploadPhoto(file) as { photo_url: string };
-      setProfil((p) => p ? { ...p, photo_url: res.photo_url } : p);
+      // Cache-bust : le fichier garde le même nom ({id}.ext) à chaque upload,
+      // le `?t=` force le navigateur à recharger la nouvelle image.
+      const freshUrl = `${res.photo_url}?t=${Date.now()}`;
+      setPhotoError(false);
+      setProfil((p) => p ? { ...p, photo_url: freshUrl } : p);
       setSuccess('Photo mise à jour');
     } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Erreur'); }
     finally { setUploadingPhoto(false); }
@@ -181,8 +186,13 @@ export default function ProfilCandidat() {
           {/* Photo + identity */}
           <div className="bg-surface-container-low rounded-2xl border border-outline-variant p-6 text-center">
             <div className="relative inline-block mb-4">
-              {profil?.photo_url ? (
-                <img src={`${api.apiBase}${profil.photo_url}`} className="w-24 h-24 rounded-2xl object-cover mx-auto" alt="" />
+              {profil?.photo_url && !photoError ? (
+                <img
+                  src={`${api.apiBase}${profil.photo_url}`}
+                  onError={() => setPhotoError(true)}
+                  className="w-24 h-24 rounded-2xl object-cover mx-auto"
+                  alt=""
+                />
               ) : (
                 <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-2xl font-bold mx-auto">
                   {initiales}

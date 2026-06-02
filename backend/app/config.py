@@ -16,6 +16,15 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    # SMTP — utilisé pour les emails transactionnels (ex: réinitialisation mot de passe)
+    # Réutilise les variables N8N_SMTP_* déjà présentes dans .env
+    N8N_SMTP_HOST: str = "smtp.gmail.com"
+    N8N_SMTP_PORT: int = 587
+    N8N_SMTP_USER: str = ""
+    N8N_SMTP_PASS: str = ""
+    N8N_SMTP_SENDER: str = "noreply@enimconnect.ma"
+    N8N_SMTP_SSL: bool = False
+
     # Emails des chefs de département (configurables depuis .env)
     CHEF_INFO_EMAIL: str = ""
     CHEF_MAT_EMAIL: str = ""

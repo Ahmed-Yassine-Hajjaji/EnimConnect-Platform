@@ -88,6 +88,18 @@ export const api = {
     clearTokens();
   },
 
+  forgotPassword: (email: string) =>
+    apiJson<{ message: string }>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+
+  resetPassword: (token: string, nouveau_mot_de_passe: string) =>
+    apiJson<{ message: string }>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ token, nouveau_mot_de_passe }),
+    }),
+
   // Étudiant
   getMonProfil: () => apiJson("/etudiants/me"),
   updateMonProfil: (body: object) =>
