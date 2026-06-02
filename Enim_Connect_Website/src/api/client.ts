@@ -169,6 +169,26 @@ export const api = {
     apiFetch(`/club/etudiants/${id}`, { method: "DELETE" }),
   supprimerEntreprise: (id: string) =>
     apiFetch(`/club/entreprises/${id}`, { method: "DELETE" }),
+  importEtudiants: async (file: File): Promise<ImportEtudiantsResult> => {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await apiFetch("/club/import-etudiants", { method: "POST", body: form });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Erreur réseau" }));
+      throw new Error(err.detail ?? "Erreur lors de l'import");
+    }
+    return res.json();
+  },
+  bulkDeleteEtudiants: (ids: string[]) =>
+    apiJson<{ supprimes: number }>("/club/etudiants/bulk-delete", {
+      method: "POST",
+      body: JSON.stringify({ ids }),
+    }),
+  bulkDeleteEntreprises: (ids: string[]) =>
+    apiJson<{ supprimes: number }>("/club/entreprises/bulk-delete", {
+      method: "POST",
+      body: JSON.stringify({ ids }),
+    }),
   getEntreprisesAvecOffres: () => apiJson<EntrepriseAvecOffres[]>("/club/entreprises-avec-offres"),
   getOffresEntreprise: (id: string) => apiJson<AnnonceAdmin[]>(`/club/entreprises/${id}/annonces`),
   getClubAnnoncesDetaillees: () => apiJson<AnnonceAdmin[]>("/club/annonces"),
@@ -367,4 +387,25 @@ export interface EntrepriseProfile {
   ville?: string;
   valide: boolean;
   email: string;
+}
+
+export interface ImportEtudiantLigne {
+  nom: string;
+  prenom: string;
+  email: string;
+  filiere?: string | null;
+  departement?: string | null;
+  niveau?: string | null;
+  mot_de_passe: string;
+}
+
+export interface ImportEtudiantErreur {
+  ligne: number;
+  email: string;
+  raison: string;
+}
+
+export interface ImportEtudiantsResult {
+  crees: ImportEtudiantLigne[];
+  erreurs: ImportEtudiantErreur[];
 }

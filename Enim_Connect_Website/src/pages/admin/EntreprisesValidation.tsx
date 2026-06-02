@@ -147,6 +147,72 @@ function DeleteEntrepriseModal({ entreprise, onClose, onDeleted }: { entreprise:
   );
 }
 
+function BulkDeleteEntreprisesModal({ entreprises, onClose, onDeleted }: { entreprises: Entreprise[]; onClose: () => void; onDeleted: (ids: string[]) => void }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleDelete() {
+    setLoading(true); setError(null);
+    try {
+      const ids = entreprises.map((e) => e.id);
+      await api.bulkDeleteEntreprises(ids);
+      onDeleted(ids);
+      onClose();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erreur lors de la suppression");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+      <div className="relative bg-surface rounded-3xl border border-outline-variant shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-error/10 flex items-center justify-center flex-shrink-0">
+            <span className="material-symbols-outlined text-error text-xl">delete_forever</span>
+          </div>
+          <div>
+            <h2 className="font-headline font-bold text-on-surface text-lg">Supprimer {entreprises.length} entreprise{entreprises.length > 1 ? "s" : ""}</h2>
+            <p className="text-sm text-on-surface-variant mt-0.5">Vérifiez la liste avant de confirmer.</p>
+          </div>
+        </div>
+
+        <div className="p-3 bg-error/5 border border-error/20 rounded-xl mb-4">
+          <p className="text-sm text-on-surface">
+            Action <strong>irréversible</strong>. Les comptes, offres publiées, candidatures reçues et données associées seront supprimés définitivement.
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-outline-variant overflow-hidden max-h-60 overflow-y-auto mb-5">
+          <table className="w-full text-xs">
+            <tbody className="divide-y divide-outline-variant">
+              {entreprises.map((e) => (
+                <tr key={e.id}>
+                  <td className="px-3 py-2 font-medium text-on-surface">{e.nom_entreprise}</td>
+                  <td className="px-3 py-2 text-on-surface-variant">{e.email}</td>
+                  <td className="px-3 py-2 text-on-surface-variant">{e.valide ? "Validée" : "En attente"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl">{error}</div>}
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 btn-ghost">Annuler</button>
+          <button onClick={handleDelete} disabled={loading}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-error text-white rounded-xl text-sm font-semibold hover:opacity-90 disabled:opacity-60">
+            {loading && <span className="material-symbols-outlined animate-spin text-base">progress_activity</span>}
+            Confirmer la suppression
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function EntreprisesValidation() {
   const [entreprises, setEntreprises] = useState<Entreprise[]>([]);
   const [loading, setLoading] = useState(true);
@@ -154,6 +220,8 @@ export default function EntreprisesValidation() {
   const [filter, setFilter] = useState<"toutes" | "en_attente" | "validees">("toutes");
   const [resetTarget, setResetTarget] = useState<Entreprise | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Entreprise | null>(null);
+  const [showBulkDelete, setShowBulkDelete] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     api
@@ -183,6 +251,36 @@ export default function EntreprisesValidation() {
     return true;
   });
 
+  const filteredIds = filtered.map((e) => e.id);
+  const tousSelectionnes = filteredIds.length > 0 && filteredIds.every((id) => selected.has(id));
+  const selectionDansFiltre = filtered.filter((e) => selected.has(e.id));
+
+  function toggleSelection(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleToutSelectionner() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (tousSelectionnes) filteredIds.forEach((id) => next.delete(id));
+      else filteredIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }
+
+  function retirerDeSelection(ids: string[]) {
+    setEntreprises((prev) => prev.filter((e) => !ids.includes(e.id)));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.delete(id));
+      return next;
+    });
+  }
+
   return (
     <main className="min-h-screen flex flex-col">
       {resetTarget && (
@@ -193,6 +291,13 @@ export default function EntreprisesValidation() {
           entreprise={deleteTarget}
           onClose={() => setDeleteTarget(null)}
           onDeleted={(id) => setEntreprises((prev) => prev.filter((e) => e.id !== id))}
+        />
+      )}
+      {showBulkDelete && (
+        <BulkDeleteEntreprisesModal
+          entreprises={selectionDansFiltre}
+          onClose={() => setShowBulkDelete(false)}
+          onDeleted={retirerDeSelection}
         />
       )}
 
@@ -224,6 +329,24 @@ export default function EntreprisesValidation() {
         </div>
       </div>
 
+      {selectionDansFiltre.length > 0 && (
+        <div className="sticky top-[7.5rem] z-[9] bg-primary/5 border-b border-primary/20 px-4 sm:px-6 lg:px-10 py-2.5 flex items-center justify-between gap-3">
+          <span className="text-sm font-medium text-on-surface">
+            {selectionDansFiltre.length} entreprise{selectionDansFiltre.length > 1 ? "s" : ""} sélectionnée{selectionDansFiltre.length > 1 ? "s" : ""}
+          </span>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setSelected(new Set())} className="text-sm font-semibold text-on-surface-variant hover:text-on-surface px-3 py-1.5">
+              Désélectionner
+            </button>
+            <button onClick={() => setShowBulkDelete(true)}
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-error text-white text-sm font-semibold rounded-xl hover:opacity-90 transition-opacity">
+              <span className="material-symbols-outlined text-base">delete</span>
+              Supprimer la sélection
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 px-4 sm:px-6 lg:px-10 py-6">
         {loading && (
           <div className="flex items-center text-on-surface-variant py-10">
@@ -241,6 +364,10 @@ export default function EntreprisesValidation() {
             <table className="w-full min-w-[640px]">
               <thead>
                 <tr className="border-b border-outline-variant bg-surface-container">
+                  <th className="px-6 py-3 w-10">
+                    <input type="checkbox" checked={tousSelectionnes} onChange={toggleToutSelectionner}
+                      className="w-4 h-4 rounded border-outline-variant accent-primary cursor-pointer" title="Tout sélectionner" />
+                  </th>
                   <th className="text-left px-6 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
                     Entreprise
                   </th>
@@ -264,13 +391,17 @@ export default function EntreprisesValidation() {
               <tbody className="divide-y divide-outline-variant">
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-6 py-10 text-center text-on-surface-variant text-sm">
+                    <td colSpan={7} className="px-6 py-10 text-center text-on-surface-variant text-sm">
                       Aucune entreprise trouvée.
                     </td>
                   </tr>
                 )}
                 {filtered.map((e) => (
-                  <tr key={e.id} className="hover:bg-surface-container/50 transition-colors">
+                  <tr key={e.id} className={`hover:bg-surface-container/50 transition-colors ${selected.has(e.id) ? "bg-primary/5" : ""}`}>
+                    <td className="px-6 py-4">
+                      <input type="checkbox" checked={selected.has(e.id)} onChange={() => toggleSelection(e.id)}
+                        className="w-4 h-4 rounded border-outline-variant accent-primary cursor-pointer" />
+                    </td>
                     <td className="px-6 py-4 font-medium text-on-surface text-sm">
                       {e.nom_entreprise}
                     </td>

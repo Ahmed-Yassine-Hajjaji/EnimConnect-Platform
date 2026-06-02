@@ -1,9 +1,12 @@
+import csv
+import io
+import re
 import uuid
 import secrets
 import string
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Body, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Body, BackgroundTasks, UploadFile, File
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -21,11 +24,63 @@ from app.middleware.auth_middleware import get_current_club
 from app.services.notification_service import create_notification
 from app.services.auth_service import hash_password
 from app.tasks.embed_annonce import embed_annonce_background
+from app.constants.ensmr import TOUS_LES_DEPARTEMENTS, FILIERE_TO_DEPARTEMENT
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_NIVEAUX_VALIDES = {"1A", "2A", "3A"}
+_IMPORT_COLONNES = ["nom", "prenom", "email", "filiere", "departement", "niveau"]
 
 
 def _generate_password(length: int = 16) -> str:
     alphabet = string.ascii_letters + string.digits + "!@#$%&*"
     return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+def _delete_etudiant_cascade(db: Session, uid: uuid.UUID) -> None:
+    """Supprime un étudiant et toutes ses données liées. NE COMMIT PAS (transaction gérée par l'appelant)."""
+    cv = db.query(CV).filter(CV.etudiant_id == uid).first()
+    if cv:
+        db.query(Embedding).filter(
+            Embedding.source_type == SourceType.cv,
+            Embedding.source_id == cv.id,
+        ).delete(synchronize_session=False)
+        db.delete(cv)
+
+    db.query(Candidature).filter(Candidature.etudiant_id == uid).delete(synchronize_session=False)
+    db.query(Notification).filter(Notification.user_id == uid).delete(synchronize_session=False)
+
+    etudiant = db.query(Etudiant).filter(Etudiant.id == uid).first()
+    if etudiant:
+        db.delete(etudiant)
+
+    user = db.query(User).filter(User.id == uid).first()
+    if user:
+        db.delete(user)
+
+
+def _delete_entreprise_cascade(db: Session, uid: uuid.UUID) -> None:
+    """Supprime une entreprise, ses annonces et toutes les données liées. NE COMMIT PAS."""
+    annonces = db.query(Annonce).filter(Annonce.entreprise_id == uid).all()
+    for annonce in annonces:
+        db.query(Embedding).filter(
+            Embedding.source_type == SourceType.annonce,
+            Embedding.source_id == annonce.id,
+        ).delete(synchronize_session=False)
+        db.query(Candidature).filter(Candidature.annonce_id == annonce.id).delete(synchronize_session=False)
+        db.query(AnnonceValidationDept).filter(
+            AnnonceValidationDept.annonce_id == annonce.id
+        ).delete(synchronize_session=False)
+        db.delete(annonce)
+
+    db.query(Notification).filter(Notification.user_id == uid).delete(synchronize_session=False)
+
+    entreprise = db.query(Entreprise).filter(Entreprise.id == uid).first()
+    if entreprise:
+        db.delete(entreprise)
+
+    user = db.query(User).filter(User.id == uid).first()
+    if user:
+        db.delete(user)
 
 
 class CreerEntrepriseRequest(BaseModel):
@@ -428,26 +483,7 @@ def supprimer_etudiant(
     if not user:
         raise HTTPException(status_code=404, detail="Étudiant introuvable")
 
-    # Delete CV embedding
-    cv = db.query(CV).filter(CV.etudiant_id == uid).first()
-    if cv:
-        db.query(Embedding).filter(
-            Embedding.source_type == SourceType.cv,
-            Embedding.source_id == cv.id,
-        ).delete(synchronize_session=False)
-        db.delete(cv)
-
-    # Candidatures (FK cascade from DB but explicit for safety)
-    db.query(Candidature).filter(Candidature.etudiant_id == uid).delete(synchronize_session=False)
-
-    # Notifications (FK cascade from DB but explicit for safety)
-    db.query(Notification).filter(Notification.user_id == uid).delete(synchronize_session=False)
-
-    etudiant = db.query(Etudiant).filter(Etudiant.id == uid).first()
-    if etudiant:
-        db.delete(etudiant)
-
-    db.delete(user)
+    _delete_etudiant_cascade(db, uid)
     db.commit()
     return {"message": "Compte étudiant supprimé définitivement"}
 
@@ -556,25 +592,204 @@ def supprimer_entreprise(
     if not user:
         raise HTTPException(status_code=404, detail="Entreprise introuvable")
 
-    # Delete annonces and their embeddings/validations/candidatures
-    annonces = db.query(Annonce).filter(Annonce.entreprise_id == uid).all()
-    for annonce in annonces:
-        db.query(Embedding).filter(
-            Embedding.source_type == SourceType.annonce,
-            Embedding.source_id == annonce.id,
-        ).delete(synchronize_session=False)
-        db.query(Candidature).filter(Candidature.annonce_id == annonce.id).delete(synchronize_session=False)
-        db.query(AnnonceValidationDept).filter(
-            AnnonceValidationDept.annonce_id == annonce.id
-        ).delete(synchronize_session=False)
-        db.delete(annonce)
-
-    db.query(Notification).filter(Notification.user_id == uid).delete(synchronize_session=False)
-
-    entreprise = db.query(Entreprise).filter(Entreprise.id == uid).first()
-    if entreprise:
-        db.delete(entreprise)
-
-    db.delete(user)
+    _delete_entreprise_cascade(db, uid)
     db.commit()
     return {"message": "Compte entreprise supprimé définitivement"}
+
+
+# ─── Import CSV d'étudiants ────────────────────────────────────────────────────
+
+def _detect_delimiter(sample: str) -> str:
+    return ";" if sample.count(";") > sample.count(",") else ","
+
+
+@router.post("/import-etudiants", status_code=200)
+async def import_etudiants(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_club),
+    db: Session = Depends(get_db),
+):
+    """
+    Import en masse d'étudiants depuis un fichier CSV.
+    Colonnes : nom, prenom, email, filiere, departement, niveau (+ telephone optionnel).
+    Validation tout-ou-rien : si UNE ligne est invalide, AUCUN compte n'est créé.
+    Renvoie {crees: [...avec mot_de_passe...], erreurs: [...]}.
+    """
+    if not (file.filename or "").lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Le fichier doit être au format CSV (.csv)")
+
+    raw = await file.read()
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        try:
+            text = raw.decode("latin-1")
+        except UnicodeDecodeError:
+            raise HTTPException(status_code=400, detail="Encodage non supporté. Enregistrez le fichier en UTF-8.")
+
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="Le fichier est vide.")
+
+    delimiter = _detect_delimiter(text.splitlines()[0])
+    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
+
+    if not reader.fieldnames:
+        raise HTTPException(status_code=400, detail="En-têtes de colonnes introuvables.")
+
+    # Normalisation des en-têtes (minuscule + trim, sans accent sur 'filiere')
+    normalized = {(h or "").strip().lower().replace("filière", "filiere").replace("département", "departement"): (h or "") for h in reader.fieldnames}
+    manquantes = [c for c in ["nom", "prenom", "email"] if c not in normalized]
+    if manquantes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Colonnes obligatoires manquantes : {', '.join(manquantes)}. Colonnes attendues : {', '.join(_IMPORT_COLONNES)}.",
+        )
+
+    def cell(row: dict, key: str) -> str:
+        src = normalized.get(key)
+        return (row.get(src) or "").strip() if src else ""
+
+    erreurs: List[dict] = []
+    valides: List[dict] = []
+    emails_du_fichier: set = set()
+    # Emails déjà présents en base (une seule requête)
+    emails_existants = {e[0].lower() for e in db.query(User.email).all()}
+
+    for i, row in enumerate(reader, start=2):  # ligne 1 = en-têtes
+        nom = cell(row, "nom")
+        prenom = cell(row, "prenom")
+        email = cell(row, "email")
+        filiere = cell(row, "filiere")
+        departement = cell(row, "departement")
+        niveau = cell(row, "niveau").upper()
+
+        # Ligne entièrement vide → ignorée silencieusement
+        if not any([nom, prenom, email, filiere, departement, niveau]):
+            continue
+
+        ligne_err: List[str] = []
+        if not nom:
+            ligne_err.append("nom manquant")
+        if not prenom:
+            ligne_err.append("prénom manquant")
+        if not email:
+            ligne_err.append("email manquant")
+        elif not _EMAIL_RE.match(email):
+            ligne_err.append("email invalide")
+        else:
+            email_l = email.lower()
+            if email_l in emails_existants:
+                ligne_err.append("email déjà utilisé en base")
+            elif email_l in emails_du_fichier:
+                ligne_err.append("email en double dans le fichier")
+
+        if filiere and filiere not in FILIERE_TO_DEPARTEMENT:
+            ligne_err.append(f"filière inconnue : « {filiere} »")
+        if departement and departement not in TOUS_LES_DEPARTEMENTS:
+            ligne_err.append(f"département inconnu : « {departement} »")
+        if filiere and departement and FILIERE_TO_DEPARTEMENT.get(filiere) != departement:
+            ligne_err.append("la filière n'appartient pas au département indiqué")
+        if niveau and niveau not in _NIVEAUX_VALIDES:
+            ligne_err.append(f"niveau invalide : « {niveau} » (attendu 1A/2A/3A)")
+
+        if ligne_err:
+            erreurs.append({"ligne": i, "email": email, "raison": " ; ".join(ligne_err)})
+            continue
+
+        # Département déduit de la filière si absent
+        if filiere and not departement:
+            departement = FILIERE_TO_DEPARTEMENT[filiere]
+
+        emails_du_fichier.add(email.lower())
+        valides.append({
+            "nom": nom, "prenom": prenom, "email": email,
+            "filiere": filiere or None, "departement": departement or None,
+            "niveau": niveau or None,
+        })
+
+    # Tout-ou-rien : la moindre erreur annule tout l'import
+    if erreurs:
+        return {"crees": [], "erreurs": erreurs}
+
+    if not valides:
+        raise HTTPException(status_code=400, detail="Aucune ligne d'étudiant exploitable dans le fichier.")
+
+    crees: List[dict] = []
+    for v in valides:
+        mot_de_passe = _generate_password()
+        user = User(
+            email=v["email"],
+            password_hash=hash_password(mot_de_passe),
+            role=RoleEnum.etudiant,
+            is_active=True,
+        )
+        db.add(user)
+        db.flush()
+        db.add(Etudiant(
+            id=user.id,
+            nom=v["nom"],
+            prenom=v["prenom"],
+            filiere=v["filiere"],
+            departement=v["departement"],
+            niveau=v["niveau"],
+        ))
+        crees.append({**v, "mot_de_passe": mot_de_passe})
+
+    db.commit()
+    return {"crees": crees, "erreurs": []}
+
+
+# ─── Suppression en masse ──────────────────────────────────────────────────────
+
+class BulkDeleteRequest(BaseModel):
+    ids: List[str]
+
+
+def _parse_uuids(ids: List[str]) -> List[uuid.UUID]:
+    if not ids:
+        raise HTTPException(status_code=400, detail="Aucun compte sélectionné.")
+    out: List[uuid.UUID] = []
+    for raw in ids:
+        try:
+            out.append(uuid.UUID(raw))
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Identifiant invalide : {raw}")
+    return out
+
+
+@router.post("/etudiants/bulk-delete", status_code=200)
+def bulk_delete_etudiants(
+    body: BulkDeleteRequest,
+    current_user: User = Depends(get_current_club),
+    db: Session = Depends(get_db),
+):
+    uids = _parse_uuids(body.ids)
+    found = db.query(User.id).filter(User.id.in_(uids), User.role == RoleEnum.etudiant).all()
+    found_ids = {r[0] for r in found}
+    missing = [str(u) for u in uids if u not in found_ids]
+    if missing:
+        raise HTTPException(status_code=404, detail=f"{len(missing)} compte(s) étudiant introuvable(s) — aucune suppression effectuée.")
+
+    for uid in found_ids:
+        _delete_etudiant_cascade(db, uid)
+    db.commit()
+    return {"supprimes": len(found_ids)}
+
+
+@router.post("/entreprises/bulk-delete", status_code=200)
+def bulk_delete_entreprises(
+    body: BulkDeleteRequest,
+    current_user: User = Depends(get_current_club),
+    db: Session = Depends(get_db),
+):
+    uids = _parse_uuids(body.ids)
+    found = db.query(User.id).filter(User.id.in_(uids), User.role == RoleEnum.entreprise).all()
+    found_ids = {r[0] for r in found}
+    missing = [str(u) for u in uids if u not in found_ids]
+    if missing:
+        raise HTTPException(status_code=404, detail=f"{len(missing)} compte(s) entreprise introuvable(s) — aucune suppression effectuée.")
+
+    for uid in found_ids:
+        _delete_entreprise_cascade(db, uid)
+    db.commit()
+    return {"supprimes": len(found_ids)}

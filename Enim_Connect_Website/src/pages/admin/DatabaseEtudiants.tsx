@@ -1,6 +1,32 @@
 import React, { useEffect, useState } from "react";
-import { api } from "../../api/client";
+import { api, type ImportEtudiantsResult } from "../../api/client";
 import { NOMS_DEPARTEMENTS, DEPT_TO_FILIERES } from "../../constants/ensmr";
+
+// ─── CSV helpers ──────────────────────────────────────────────────────────────
+function csvEscape(value: string): string {
+  const v = value ?? "";
+  return /[",;\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+}
+
+function downloadCsv(filename: string, rows: string[][]) {
+  const content = rows.map((r) => r.map(csvEscape).join(",")).join("\r\n");
+  // BOM pour qu'Excel ouvre l'UTF-8 correctement
+  const blob = new Blob(["﻿" + content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+const TEMPLATE_HEADER = ["nom", "prenom", "email", "filiere", "departement", "niveau"];
+const TEMPLATE_EXEMPLE: string[][] = [
+  ["Benali", "Yassine", "y.benali@enim.ac.ma", "Génie Informatique (GI)", "Département Informatique", "3A"],
+  ["El Idrissi", "Salma", "s.elidrissi@enim.ac.ma", "Management Industriel (MGI)", "Département Génie Industriel", "2A"],
+];
 
 interface EtudiantAdmin {
   etudiant_id: string;
@@ -283,6 +309,271 @@ function CreerEtudiantModal({ onClose, onCreated }: { onClose: () => void; onCre
   );
 }
 
+// ─── Import CSV Modal ─────────────────────────────────────────────────────────
+function ImportEtudiantsModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<ImportEtudiantsResult | null>(null);
+
+  function telechargerModele() {
+    downloadCsv("modele_import_etudiants.csv", [TEMPLATE_HEADER, ...TEMPLATE_EXEMPLE]);
+  }
+
+  function telechargerIdentifiants() {
+    if (!result?.crees.length) return;
+    downloadCsv("identifiants_etudiants.csv", [
+      ["nom", "prenom", "email", "filiere", "departement", "niveau", "mot_de_passe"],
+      ...result.crees.map((c) => [
+        c.nom, c.prenom, c.email, c.filiere ?? "", c.departement ?? "", c.niveau ?? "", c.mot_de_passe,
+      ]),
+    ]);
+  }
+
+  async function handleSubmit() {
+    if (!file) return;
+    setLoading(true); setError(null);
+    try {
+      const res = await api.importEtudiants(file);
+      setResult(res);
+      if (res.crees.length > 0) onImported();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erreur lors de l'import");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const aReussi = result && result.crees.length > 0;
+  const aEchoue = result && result.erreurs.length > 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+      <div className="relative bg-surface rounded-3xl border border-outline-variant shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 pt-6 pb-4 border-b border-outline-variant flex items-center justify-between sticky top-0 bg-surface z-10">
+          <div>
+            <h2 className="font-headline font-bold text-on-surface text-lg">Importer des étudiants (CSV)</h2>
+            <p className="text-sm text-on-surface-variant mt-0.5">Un compte est créé pour chaque ligne, avec mot de passe généré.</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-surface-container transition-colors">
+            <span className="material-symbols-outlined text-on-surface-variant">close</span>
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-5">
+          {!result && (
+            <>
+              {/* Exemple de format attendu */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold text-on-surface">Format attendu du fichier</h3>
+                  <button onClick={telechargerModele} className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline">
+                    <span className="material-symbols-outlined text-base">download</span>
+                    Télécharger le modèle
+                  </button>
+                </div>
+                <div className="rounded-xl border border-outline-variant overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-surface-container">
+                        {TEMPLATE_HEADER.map((h) => (
+                          <th key={h} className="text-left px-3 py-2 font-semibold text-on-surface-variant whitespace-nowrap">
+                            {h}{["nom", "prenom", "email"].includes(h) && <span className="text-error"> *</span>}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-outline-variant">
+                      {TEMPLATE_EXEMPLE.map((row, i) => (
+                        <tr key={i}>
+                          {row.map((c, j) => (
+                            <td key={j} className="px-3 py-2 text-on-surface-variant whitespace-nowrap">{c}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-xs text-on-surface-variant mt-2">
+                  <span className="text-error">*</span> Colonnes obligatoires : <strong>nom, prenom, email</strong>.
+                  Les colonnes <strong>filiere, departement, niveau</strong> (1A / 2A / 3A) sont optionnelles mais doivent correspondre aux valeurs officielles de l'ENSMR.
+                  Séparateur virgule ou point-virgule, encodage UTF-8.
+                </p>
+              </div>
+
+              {/* Upload */}
+              <div>
+                <label className="block text-sm font-semibold text-on-surface mb-1.5">Fichier CSV</label>
+                <label className="flex items-center gap-3 border-2 border-dashed border-outline-variant rounded-xl px-4 py-4 cursor-pointer hover:border-primary transition-colors">
+                  <span className="material-symbols-outlined text-on-surface-variant">upload_file</span>
+                  <span className="text-sm text-on-surface-variant flex-1 truncate">{file ? file.name : "Choisir un fichier .csv…"}</span>
+                  <input type="file" accept=".csv,text/csv" className="hidden"
+                    onChange={(e) => { setFile(e.target.files?.[0] ?? null); setError(null); }} />
+                </label>
+              </div>
+
+              {error && <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl">{error}</div>}
+
+              <div className="flex gap-3">
+                <button onClick={onClose} className="flex-1 btn-ghost">Annuler</button>
+                <button onClick={handleSubmit} disabled={!file || loading}
+                  className="flex-1 flex items-center justify-center gap-2 btn-primary disabled:opacity-60">
+                  {loading && <span className="material-symbols-outlined animate-spin text-base">progress_activity</span>}
+                  Importer
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Résultat — échec (tout-ou-rien : rien n'a été créé) */}
+          {aEchoue && (
+            <div>
+              <div className="p-4 bg-error/5 border border-error/20 rounded-xl mb-4">
+                <p className="text-sm text-on-surface font-medium">
+                  Aucun compte n'a été créé. {result!.erreurs.length} ligne(s) à corriger (import tout-ou-rien).
+                </p>
+              </div>
+              <div className="rounded-xl border border-outline-variant overflow-hidden max-h-72 overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0">
+                    <tr className="bg-surface-container">
+                      <th className="text-left px-3 py-2 font-semibold text-on-surface-variant">Ligne</th>
+                      <th className="text-left px-3 py-2 font-semibold text-on-surface-variant">Email</th>
+                      <th className="text-left px-3 py-2 font-semibold text-on-surface-variant">Problème</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-outline-variant">
+                    {result!.erreurs.map((er, i) => (
+                      <tr key={i}>
+                        <td className="px-3 py-2 text-on-surface-variant">{er.ligne}</td>
+                        <td className="px-3 py-2 text-on-surface-variant">{er.email || "—"}</td>
+                        <td className="px-3 py-2 text-error">{er.raison}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex gap-3 mt-5">
+                <button onClick={() => { setResult(null); setFile(null); }} className="flex-1 btn-ghost">Réessayer</button>
+                <button onClick={onClose} className="flex-1 btn-primary justify-center">Fermer</button>
+              </div>
+            </div>
+          )}
+
+          {/* Résultat — succès */}
+          {aReussi && (
+            <div>
+              <div className="p-4 bg-green-50 border border-green-200 rounded-xl mb-4 flex items-center gap-3">
+                <span className="material-symbols-outlined text-green-600">check_circle</span>
+                <p className="text-sm text-green-700 font-medium">{result!.crees.length} compte(s) étudiant créé(s) avec succès.</p>
+              </div>
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl mb-4">
+                <p className="text-xs text-amber-800">
+                  Téléchargez les identifiants <strong>maintenant</strong> : les mots de passe ne pourront plus être récupérés après fermeture.
+                </p>
+              </div>
+              <div className="rounded-xl border border-outline-variant overflow-hidden max-h-60 overflow-y-auto mb-4">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0">
+                    <tr className="bg-surface-container">
+                      <th className="text-left px-3 py-2 font-semibold text-on-surface-variant">Email</th>
+                      <th className="text-left px-3 py-2 font-semibold text-on-surface-variant">Mot de passe</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-outline-variant">
+                    {result!.crees.map((c, i) => (
+                      <tr key={i}>
+                        <td className="px-3 py-2 text-on-surface-variant">{c.email}</td>
+                        <td className="px-3 py-2 font-mono text-on-surface select-all">{c.mot_de_passe}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={telechargerIdentifiants}
+                  className="flex-1 flex items-center justify-center gap-2 btn-primary">
+                  <span className="material-symbols-outlined text-base">download</span>
+                  Télécharger les identifiants (CSV)
+                </button>
+                <button onClick={onClose} className="flex-1 btn-ghost">Fermer</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Bulk Delete Modal ────────────────────────────────────────────────────────
+function BulkDeleteEtudiantsModal({ etudiants, onClose, onDeleted }: { etudiants: EtudiantAdmin[]; onClose: () => void; onDeleted: (ids: string[]) => void }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleDelete() {
+    setLoading(true); setError(null);
+    try {
+      const ids = etudiants.map((e) => e.etudiant_id);
+      await api.bulkDeleteEtudiants(ids);
+      onDeleted(ids);
+      onClose();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Erreur lors de la suppression");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+      <div className="relative bg-surface rounded-3xl border border-outline-variant shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-error/10 flex items-center justify-center flex-shrink-0">
+            <span className="material-symbols-outlined text-error text-xl">delete_forever</span>
+          </div>
+          <div>
+            <h2 className="font-headline font-bold text-on-surface text-lg">Supprimer {etudiants.length} étudiant{etudiants.length > 1 ? "s" : ""}</h2>
+            <p className="text-sm text-on-surface-variant mt-0.5">Vérifiez la liste avant de confirmer.</p>
+          </div>
+        </div>
+
+        <div className="p-3 bg-error/5 border border-error/20 rounded-xl mb-4">
+          <p className="text-sm text-on-surface">
+            Action <strong>irréversible</strong>. Les comptes, CV, candidatures et données associées seront supprimés définitivement.
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-outline-variant overflow-hidden max-h-60 overflow-y-auto mb-5">
+          <table className="w-full text-xs">
+            <tbody className="divide-y divide-outline-variant">
+              {etudiants.map((e) => (
+                <tr key={e.etudiant_id}>
+                  <td className="px-3 py-2 font-medium text-on-surface">{e.prenom} {e.nom}</td>
+                  <td className="px-3 py-2 text-on-surface-variant">{e.email}</td>
+                  <td className="px-3 py-2 text-on-surface-variant">{e.niveau ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl">{error}</div>}
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 btn-ghost">Annuler</button>
+          <button onClick={handleDelete} disabled={loading}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-error text-white rounded-xl text-sm font-semibold hover:opacity-90 disabled:opacity-60">
+            {loading && <span className="material-symbols-outlined animate-spin text-base">progress_activity</span>}
+            Confirmer la suppression
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function DatabaseEtudiants() {
   const [etudiants, setEtudiants] = useState<EtudiantAdmin[]>([]);
@@ -294,12 +585,20 @@ export default function DatabaseEtudiants() {
   const [resetTarget, setResetTarget] = useState<EtudiantAdmin | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<EtudiantAdmin | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [showBulkDelete, setShowBulkDelete] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
+  function chargerEtudiants() {
+    setLoading(true);
     api.getEtudiants()
       .then((data) => setEtudiants(data as EtudiantAdmin[]))
       .catch(console.error)
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    chargerEtudiants();
   }, []);
 
   const filtered = etudiants.filter((e) => {
@@ -321,6 +620,39 @@ export default function DatabaseEtudiants() {
     avec_cv: etudiants.filter((e) => e.a_un_cv).length,
   };
 
+  const filteredIds = filtered.map((e) => e.etudiant_id);
+  const tousSelectionnes = filteredIds.length > 0 && filteredIds.every((id) => selected.has(id));
+  const selectionDansFiltre = filtered.filter((e) => selected.has(e.etudiant_id));
+
+  function toggleSelection(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleToutSelectionner() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (tousSelectionnes) {
+        filteredIds.forEach((id) => next.delete(id));
+      } else {
+        filteredIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  }
+
+  function retirerDeSelection(ids: string[]) {
+    setEtudiants((prev) => prev.filter((e) => !ids.includes(e.etudiant_id)));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.delete(id));
+      return next;
+    });
+  }
+
   return (
     <main className="min-h-screen flex flex-col">
       {resetTarget && <ResetPasswordModal etudiant={resetTarget} onClose={() => setResetTarget(null)} />}
@@ -335,6 +667,19 @@ export default function DatabaseEtudiants() {
         <CreerEtudiantModal
           onClose={() => setShowCreate(false)}
           onCreated={(e) => setEtudiants((prev) => [e, ...prev])}
+        />
+      )}
+      {showImport && (
+        <ImportEtudiantsModal
+          onClose={() => setShowImport(false)}
+          onImported={chargerEtudiants}
+        />
+      )}
+      {showBulkDelete && (
+        <BulkDeleteEtudiantsModal
+          etudiants={selectionDansFiltre}
+          onClose={() => setShowBulkDelete(false)}
+          onDeleted={retirerDeSelection}
         />
       )}
 
@@ -356,6 +701,11 @@ export default function DatabaseEtudiants() {
               <div className="font-headline font-bold text-xl text-green-600">{stats.avec_cv}</div>
               <div className="text-xs text-green-600">Avec CV</div>
             </div>
+            <button onClick={() => setShowImport(true)} className="btn-ghost border border-outline-variant">
+              <span className="material-symbols-outlined text-xl">upload_file</span>
+              <span className="hidden sm:inline">Importer CSV</span>
+              <span className="sm:hidden">Import</span>
+            </button>
             <button onClick={() => setShowCreate(true)} className="btn-primary">
               <span className="material-symbols-outlined text-xl">person_add</span>
               <span className="hidden sm:inline">Créer un étudiant</span>
@@ -400,6 +750,25 @@ export default function DatabaseEtudiants() {
         </div>
       </div>
 
+      {/* Barre de sélection groupée */}
+      {selectionDansFiltre.length > 0 && (
+        <div className="sticky top-[8.5rem] z-[9] bg-primary/5 border-b border-primary/20 px-4 sm:px-6 lg:px-10 py-2.5 flex items-center justify-between gap-3">
+          <span className="text-sm font-medium text-on-surface">
+            {selectionDansFiltre.length} étudiant{selectionDansFiltre.length > 1 ? "s" : ""} sélectionné{selectionDansFiltre.length > 1 ? "s" : ""}
+          </span>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setSelected(new Set())} className="text-sm font-semibold text-on-surface-variant hover:text-on-surface px-3 py-1.5">
+              Désélectionner
+            </button>
+            <button onClick={() => setShowBulkDelete(true)}
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-error text-white text-sm font-semibold rounded-xl hover:opacity-90 transition-opacity">
+              <span className="material-symbols-outlined text-base">delete</span>
+              Supprimer la sélection
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <div className="px-4 sm:px-6 lg:px-10 py-6 flex-1">
         {loading ? (
@@ -418,6 +787,10 @@ export default function DatabaseEtudiants() {
             <table className="w-full min-w-[760px]">
               <thead>
                 <tr className="border-b border-outline-variant bg-surface-container">
+                  <th className="px-5 py-3 w-10">
+                    <input type="checkbox" checked={tousSelectionnes} onChange={toggleToutSelectionner}
+                      className="w-4 h-4 rounded border-outline-variant accent-primary cursor-pointer" title="Tout sélectionner" />
+                  </th>
                   {["Étudiant", "Email", "Filière / Département", "Niveau", "Compétences", "CV", "Actions"].map((h) => (
                     <th key={h} className="text-left px-5 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">{h}</th>
                   ))}
@@ -425,7 +798,11 @@ export default function DatabaseEtudiants() {
               </thead>
               <tbody className="divide-y divide-outline-variant">
                 {filtered.map((e, i) => (
-                  <tr key={e.etudiant_id} className="hover:bg-surface-container/50 transition-colors">
+                  <tr key={e.etudiant_id} className={`hover:bg-surface-container/50 transition-colors ${selected.has(e.etudiant_id) ? "bg-primary/5" : ""}`}>
+                    <td className="px-5 py-4">
+                      <input type="checkbox" checked={selected.has(e.etudiant_id)} onChange={() => toggleSelection(e.etudiant_id)}
+                        className="w-4 h-4 rounded border-outline-variant accent-primary cursor-pointer" />
+                    </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${COLORS[i % COLORS.length]} flex items-center justify-center text-white font-bold text-xs flex-shrink-0`}>
