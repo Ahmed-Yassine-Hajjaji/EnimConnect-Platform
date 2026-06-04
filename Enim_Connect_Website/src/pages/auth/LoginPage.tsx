@@ -31,6 +31,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleGoogleResponse = useCallback(
     async (response: { credential: string }) => {
@@ -218,13 +219,22 @@ export default function LoginPage() {
                     lock
                   </span>
                   <input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
                     required
                     className="flex-1 bg-transparent text-sm text-on-surface placeholder-on-surface-variant outline-none"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="text-on-surface-variant hover:text-on-surface transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-xl">
+                      {showPassword ? "visibility_off" : "visibility"}
+                    </span>
+                  </button>
                 </div>
               </div>
 
