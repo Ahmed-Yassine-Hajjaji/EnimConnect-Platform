@@ -21,6 +21,7 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     role = Column(Enum(RoleEnum), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+    must_change_password = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     etudiant = relationship("Etudiant", back_populates="user", uselist=False)

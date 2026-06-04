@@ -231,6 +231,7 @@ def list_annonces(
             "description": a.description,
             "statut": a.statut,
             "is_active": a.is_active,
+            "suppression_demandee": a.suppression_demandee,
             "entreprise_id": str(a.entreprise_id),
             "departement": a.departement,
             "departements": a.departements or [],
@@ -299,6 +300,104 @@ def rejeter_annonce_club(
     return {"message": "Annonce rejetée"}
 
 
+@router.get("/demandes-suppression")
+def list_demandes_suppression(
+    current_user: User = Depends(get_current_club),
+    db: Session = Depends(get_db),
+):
+    annonces = db.query(Annonce).filter(Annonce.suppression_demandee == True).order_by(Annonce.created_at.desc()).all()
+    result = []
+    for a in annonces:
+        entreprise = db.query(Entreprise).filter(Entreprise.id == a.entreprise_id).first()
+        nb_candidatures = db.query(Candidature).filter(Candidature.annonce_id == a.id).count()
+        result.append({
+            "id": str(a.id),
+            "titre": a.titre,
+            "departement": a.departement,
+            "departements": a.departements or [],
+            "duree_mois": a.duree_mois,
+            "nom_entreprise": entreprise.nom_entreprise if entreprise else None,
+            "ville": entreprise.ville if entreprise else None,
+            "created_at": a.created_at.isoformat(),
+            "nb_candidatures": nb_candidatures,
+        })
+    return result
+
+
+@router.put("/annonces/{annonce_id}/approuver-suppression")
+def approuver_suppression(
+    annonce_id: str,
+    current_user: User = Depends(get_current_club),
+    db: Session = Depends(get_db),
+):
+    annonce = db.query(Annonce).filter(Annonce.id == uuid.UUID(annonce_id)).first()
+    if not annonce:
+        raise HTTPException(status_code=404, detail="Annonce introuvable")
+    if not annonce.suppression_demandee:
+        raise HTTPException(status_code=400, detail="Aucune demande de suppression pour cette annonce")
+
+    entreprise = db.query(Entreprise).filter(Entreprise.id == annonce.entreprise_id).first()
+    nom_e = entreprise.nom_entreprise if entreprise else "L'entreprise"
+    titre = annonce.titre
+
+    # Notifier tous les étudiants candidats
+    candidatures = db.query(Candidature).filter(Candidature.annonce_id == annonce.id).all()
+    for c in candidatures:
+        create_notification(
+            db,
+            c.etudiant_id,
+            "Offre retirée",
+            f"L'offre « {titre} » de {nom_e} a été retirée. Votre candidature n'est plus active.",
+        )
+
+    # Notifier l'entreprise
+    create_notification(
+        db,
+        annonce.entreprise_id,
+        "Suppression approuvée",
+        f"Votre demande de suppression de l'offre « {titre} » a été approuvée.",
+    )
+
+    # Supprimer l'annonce et ses données liées
+    db.query(Embedding).filter(
+        Embedding.source_type == SourceType.annonce,
+        Embedding.source_id == annonce.id,
+    ).delete(synchronize_session=False)
+    db.query(Candidature).filter(Candidature.annonce_id == annonce.id).delete(synchronize_session=False)
+    db.query(AnnonceValidationDept).filter(
+        AnnonceValidationDept.annonce_id == annonce.id,
+    ).delete(synchronize_session=False)
+    db.delete(annonce)
+
+    db.commit()
+    return {"message": f"L'offre « {titre} » a été supprimée."}
+
+
+@router.put("/annonces/{annonce_id}/rejeter-suppression")
+def rejeter_suppression(
+    annonce_id: str,
+    current_user: User = Depends(get_current_club),
+    db: Session = Depends(get_db),
+):
+    annonce = db.query(Annonce).filter(Annonce.id == uuid.UUID(annonce_id)).first()
+    if not annonce:
+        raise HTTPException(status_code=404, detail="Annonce introuvable")
+    if not annonce.suppression_demandee:
+        raise HTTPException(status_code=400, detail="Aucune demande de suppression pour cette annonce")
+
+    annonce.suppression_demandee = False
+
+    create_notification(
+        db,
+        annonce.entreprise_id,
+        "Suppression refusée",
+        f"Votre demande de suppression de l'offre « {annonce.titre} » a été refusée. L'offre reste active.",
+    )
+
+    db.commit()
+    return {"message": "Demande de suppression refusée"}
+
+
 @router.post("/creer-entreprise", status_code=201)
 def creer_entreprise(
     body: CreerEntrepriseRequest,
@@ -314,6 +413,7 @@ def creer_entreprise(
         password_hash=hash_password(body.password),
         role=RoleEnum.entreprise,
         is_active=True,
+        must_change_password=True,
     )
     db.add(user)
     db.flush()
@@ -346,6 +446,9 @@ def creer_etudiant(
     current_user: User = Depends(get_current_club),
     db: Session = Depends(get_db),
 ):
+    if not body.email.lower().endswith("@enim.ac.ma"):
+        raise HTTPException(status_code=400, detail="L'email étudiant doit se terminer par @enim.ac.ma")
+
     existing = db.query(User).filter(User.email == body.email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email déjà utilisé")
@@ -355,6 +458,7 @@ def creer_etudiant(
         password_hash=hash_password(body.password),
         role=RoleEnum.etudiant,
         is_active=True,
+        must_change_password=True,
     )
     db.add(user)
     db.flush()
@@ -389,6 +493,7 @@ def reset_etudiant_password(
 
     new_password = _generate_password()
     user.password_hash = hash_password(new_password)
+    user.must_change_password = True
     db.commit()
     return {"nouveau_mot_de_passe": new_password}
 
@@ -410,6 +515,7 @@ def reset_entreprise_password(
 
     new_password = _generate_password()
     user.password_hash = hash_password(new_password)
+    user.must_change_password = True
     db.commit()
 
     return {"nouveau_mot_de_passe": new_password}
@@ -677,6 +783,8 @@ async def import_etudiants(
             ligne_err.append("email manquant")
         elif not _EMAIL_RE.match(email):
             ligne_err.append("email invalide")
+        elif not email.lower().endswith("@enim.ac.ma"):
+            ligne_err.append("l'email doit se terminer par @enim.ac.ma")
         else:
             email_l = email.lower()
             if email_l in emails_existants:
@@ -721,6 +829,7 @@ async def import_etudiants(
             password_hash=hash_password(mot_de_passe),
             role=RoleEnum.etudiant,
             is_active=True,
+            must_change_password=True,
         )
         db.add(user)
         db.flush()

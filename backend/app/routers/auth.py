@@ -111,7 +111,7 @@ def google_login(request: Request, body: GoogleAuthRequest, db: Session = Depend
     elif not user.is_active:
         raise HTTPException(status_code=403, detail="Compte désactivé")
 
-    token_data = {"sub": str(user.id), "role": user.role}
+    token_data = {"sub": str(user.id), "role": user.role, "mcp": False}
     return TokenResponse(
         access_token=create_access_token(token_data),
         refresh_token=create_refresh_token(token_data),
@@ -127,7 +127,7 @@ def login(request: Request, body: LoginRequest, db: Session = Depends(get_db)):
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Compte désactivé")
 
-    token_data = {"sub": str(user.id), "role": user.role}
+    token_data = {"sub": str(user.id), "role": user.role, "mcp": user.must_change_password}
     return TokenResponse(
         access_token=create_access_token(token_data),
         refresh_token=create_refresh_token(token_data),
@@ -145,7 +145,7 @@ def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="Utilisateur introuvable")
 
-    token_data = {"sub": str(user.id), "role": user.role}
+    token_data = {"sub": str(user.id), "role": user.role, "mcp": user.must_change_password}
     return AccessTokenResponse(access_token=create_access_token(token_data))
 
 
@@ -211,6 +211,33 @@ def logout():
     return {"message": "Déconnecté"}
 
 
+class ForceChangePasswordRequest(BaseModel):
+    nouveau_mot_de_passe: str
+
+
+@router.put("/force-change-password")
+def force_change_password(
+    body: ForceChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Changement obligatoire lors de la première connexion."""
+    if not current_user.must_change_password:
+        raise HTTPException(status_code=400, detail="Aucun changement de mot de passe requis")
+    if len(body.nouveau_mot_de_passe) < 8:
+        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins 8 caractères")
+    current_user.password_hash = hash_password(body.nouveau_mot_de_passe)
+    current_user.must_change_password = False
+    db.commit()
+    # Renvoyer de nouveaux tokens sans le flag mcp
+    token_data = {"sub": str(current_user.id), "role": current_user.role, "mcp": False}
+    return {
+        "message": "Mot de passe modifié avec succès",
+        "access_token": create_access_token(token_data),
+        "refresh_token": create_refresh_token(token_data),
+    }
+
+
 @router.put("/change-password")
 def change_password(
     body: ChangePasswordRequest,
@@ -222,5 +249,6 @@ def change_password(
     if len(body.nouveau_mot_de_passe) < 8:
         raise HTTPException(status_code=400, detail="Le nouveau mot de passe doit contenir au moins 8 caractères")
     current_user.password_hash = hash_password(body.nouveau_mot_de_passe)
+    current_user.must_change_password = False
     db.commit()
     return {"message": "Mot de passe modifié avec succès"}

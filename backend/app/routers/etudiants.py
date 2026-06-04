@@ -66,18 +66,13 @@ def upload_photo(
     if file.content_type not in allowed:
         raise HTTPException(status_code=400, detail="Format d'image non supporté (jpeg, png, webp)")
 
-    photos_dir = os.path.join(settings.STORAGE_PATH, "photos")
-    os.makedirs(photos_dir, exist_ok=True)
-
     ext = file.filename.rsplit(".", 1)[-1] if "." in file.filename else "jpg"
-    filename = f"{current_user.id}.{ext}"
-    path = os.path.join(photos_dir, filename)
+    contents = file.file.read()
 
-    with open(path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+    photo_url = storage_service.save_photo(str(current_user.id), contents, ext)
 
     etudiant = db.query(Etudiant).filter(Etudiant.id == current_user.id).first()
-    etudiant.photo_url = f"/storage/photos/{filename}"
+    etudiant.photo_url = photo_url
     db.commit()
 
     return {"photo_url": etudiant.photo_url}

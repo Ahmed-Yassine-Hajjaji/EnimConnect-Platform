@@ -43,6 +43,7 @@ class AnnonceOut(BaseModel):
     duree_mois: Optional[int] = None
     statut: StatutAnnonce
     is_active: bool
+    suppression_demandee: bool = False
     created_at: datetime
     nom_entreprise: Optional[str] = None
     ville: Optional[str] = None

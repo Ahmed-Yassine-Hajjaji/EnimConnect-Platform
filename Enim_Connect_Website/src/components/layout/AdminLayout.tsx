@@ -18,13 +18,14 @@ const NAV_LINKS_SCOLARITE = [
 
 export default function AdminLayout() {
   const navigate = useNavigate();
-  const { isAuthenticated, role, logout } = useAuth();
+  const { isAuthenticated, role, mustChangePassword, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) navigate("/", { replace: true });
+    else if (mustChangePassword) navigate("/changer-mot-de-passe", { replace: true });
     else if (role && role !== "club") navigate("/", { replace: true });
-  }, [isAuthenticated, role, navigate]);
+  }, [isAuthenticated, role, mustChangePassword, navigate]);
 
   function closeOnMobile() {
     setSidebarOpen(false);

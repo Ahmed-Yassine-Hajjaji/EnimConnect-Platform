@@ -25,11 +25,21 @@ export default function DashboardEntreprise() {
   }, []);
 
   async function handleDelete(id: string) {
-    if (!confirm("Supprimer cette annonce ?")) return;
+    const annonce = annonces.find((a) => a.id === id);
+    const msg = annonce?.statut === "validee"
+      ? "Demander la suppression de cette offre active ?"
+      : "Supprimer cette annonce ?";
+    if (!confirm(msg)) return;
     setDeletingId(id);
     try {
-      await api.supprimerAnnonce(id);
-      setAnnonces((prev) => prev.filter((a) => a.id !== id));
+      const res = await api.supprimerAnnonce(id) as any;
+      if (annonce?.statut === "validee") {
+        // Demande envoyée, mettre à jour l'état local
+        setAnnonces((prev) => prev.map((a) => a.id === id ? { ...a, suppression_demandee: true } : a));
+        alert(res?.message ?? "Demande de suppression envoyée.");
+      } else {
+        setAnnonces((prev) => prev.filter((a) => a.id !== id));
+      }
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : "Erreur");
     } finally {
@@ -159,14 +169,20 @@ export default function DashboardEntreprise() {
                                 <span className="material-symbols-outlined text-base">group</span>
                               </button>
                             )}
-                            <button
-                              onClick={() => handleDelete(a.id)}
-                              disabled={deletingId === a.id || a.statut === "validee"}
-                              className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 transition-colors disabled:opacity-30"
-                              title={a.statut === "validee" ? "Impossible de supprimer une offre active" : "Supprimer"}
-                            >
-                              <span className="material-symbols-outlined text-base">delete</span>
-                            </button>
+                            {a.suppression_demandee ? (
+                              <span className="text-xs font-semibold px-2 py-1 rounded-lg bg-orange-50 text-orange-600">
+                                Suppression demandée
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => handleDelete(a.id)}
+                                disabled={deletingId === a.id}
+                                className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 transition-colors disabled:opacity-30"
+                                title={a.statut === "validee" ? "Demander la suppression" : "Supprimer"}
+                              >
+                                <span className="material-symbols-outlined text-base">delete</span>
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

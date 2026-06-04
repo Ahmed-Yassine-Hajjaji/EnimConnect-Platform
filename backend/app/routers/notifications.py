@@ -81,6 +81,20 @@ def marquer_tout_lu(
     return {"ok": True}
 
 
+@router.delete("")
+def supprimer_tout(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    count = (
+        db.query(Notification)
+        .filter(Notification.user_id == current_user.id)
+        .delete()
+    )
+    db.commit()
+    return {"ok": True, "supprimes": count}
+
+
 @router.delete("/{notification_id}")
 def supprimer(
     notification_id: str,

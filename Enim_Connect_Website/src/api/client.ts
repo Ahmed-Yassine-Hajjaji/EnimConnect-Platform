@@ -203,6 +203,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ ids }),
     }),
+  getDemandesSuppression: () => apiJson<DemandeSuppressionItem[]>("/club/demandes-suppression"),
+  approuverSuppression: (id: string) =>
+    apiJson(`/club/annonces/${id}/approuver-suppression`, { method: "PUT" }),
+  rejeterSuppression: (id: string) =>
+    apiJson(`/club/annonces/${id}/rejeter-suppression`, { method: "PUT" }),
   getEntreprisesAvecOffres: () => apiJson<EntrepriseAvecOffres[]>("/club/entreprises-avec-offres"),
   getOffresEntreprise: (id: string) => apiJson<AnnonceAdmin[]>(`/club/entreprises/${id}/annonces`),
   getClubAnnoncesDetaillees: () => apiJson<AnnonceAdmin[]>("/club/annonces"),
@@ -212,6 +217,23 @@ export const api = {
   getStatsEtudiants: () => apiJson("/club/stats/etudiants"),
   changePassword: (ancien_mot_de_passe: string, nouveau_mot_de_passe: string) =>
     apiJson("/auth/change-password", { method: "PUT", body: JSON.stringify({ ancien_mot_de_passe, nouveau_mot_de_passe }) }),
+
+  forceChangePassword: (nouveau_mot_de_passe: string) =>
+    apiJson<{ message: string; access_token: string; refresh_token: string }>(
+      "/auth/force-change-password",
+      { method: "PUT", body: JSON.stringify({ nouveau_mot_de_passe }) }
+    ),
+
+  mustChangePassword: () => {
+    const token = getAccessToken();
+    if (!token) return false;
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      return !!payload.mcp;
+    } catch {
+      return false;
+    }
+  },
 
   downloadCV: async (etudiantId: string, filename = "cv.pdf"): Promise<void> => {
     const res = await apiFetch(`/api/cv/${etudiantId}`);
@@ -236,6 +258,7 @@ export const api = {
   marquerLue: (id: string) => apiJson(`/notifications/${id}/lire`, { method: "POST" }),
   marquerToutLu: () => apiJson("/notifications/lire-tout", { method: "POST" }),
   supprimerNotification: (id: string) => apiFetch(`/notifications/${id}`, { method: "DELETE" }),
+  supprimerToutesNotifications: () => apiFetch("/notifications", { method: "DELETE" }).then((r) => r.json()),
 
   // Page de décision chef (sans auth)
   getDecisionInfo: (validationId: string, token: string, chefId: string) =>
@@ -301,6 +324,7 @@ export interface Annonce {
   duree_mois?: number;
   statut: "en_attente" | "validee" | "rejetee";
   is_active: boolean;
+  suppression_demandee?: boolean;
   created_at: string;
   nom_entreprise?: string;
   ville?: string;
@@ -376,6 +400,18 @@ export interface EntrepriseAvecOffres {
   nb_offres: number;
 }
 
+export interface DemandeSuppressionItem {
+  id: string;
+  titre: string;
+  departement: string;
+  departements: string[];
+  duree_mois?: number;
+  nom_entreprise?: string;
+  ville?: string;
+  created_at: string;
+  nb_candidatures: number;
+}
+
 export interface AnnonceAdmin {
   id: string;
   titre: string;
@@ -385,6 +421,7 @@ export interface AnnonceAdmin {
   duree_mois?: number;
   statut: "en_attente" | "validee" | "rejetee";
   is_active: boolean;
+  suppression_demandee?: boolean;
   created_at: string;
   nom_entreprise?: string;
   ville?: string;

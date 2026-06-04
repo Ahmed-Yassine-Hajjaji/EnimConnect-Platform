@@ -29,6 +29,7 @@ class Annonce(Base):
     validee_le = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=False, nullable=False)
     donnees_ia = Column(JSONB, nullable=True)  # {resume, competences_requises[], niveau_requis, domaines[]}
+    suppression_demandee = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     entreprise = relationship("Entreprise", back_populates="annonces")

@@ -77,18 +77,12 @@ def upload_logo(
     if len(contents) > MAX_LOGO_SIZE:
         raise HTTPException(status_code=413, detail="Fichier trop volumineux (max 5 Mo)")
 
-    logos_dir = os.path.join(settings.STORAGE_PATH, "logos")
-    os.makedirs(logos_dir, exist_ok=True)
-
     ext = file.filename.rsplit(".", 1)[-1] if "." in file.filename else "jpg"
-    filename = f"{current_user.id}.{ext}"
-    path = os.path.join(logos_dir, filename)
-
-    with open(path, "wb") as f:
-        f.write(contents)
+    from app.services import storage_service
+    logo_url = storage_service.save_logo(str(current_user.id), contents, ext)
 
     entreprise = db.query(Entreprise).filter(Entreprise.id == current_user.id).first()
-    entreprise.logo_url = f"/storage/logos/{filename}"
+    entreprise.logo_url = logo_url
     db.commit()
 
     return {"logo_url": entreprise.logo_url}
@@ -250,7 +244,7 @@ def update_annonce(
     )
 
 
-@router.delete("/annonces/{annonce_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/annonces/{annonce_id}")
 def delete_annonce(
     annonce_id: str,
     current_user: User = Depends(get_current_validated_entreprise),
@@ -263,8 +257,26 @@ def delete_annonce(
     )
     if not annonce:
         raise HTTPException(status_code=404, detail="Annonce introuvable")
+
+    # Offre validée/active → demande de suppression au lieu de supprimer directement
+    if annonce.statut == StatutAnnonce.validee:
+        if annonce.suppression_demandee:
+            raise HTTPException(status_code=400, detail="Une demande de suppression est déjà en cours")
+        annonce.suppression_demandee = True
+        entreprise = db.query(Entreprise).filter(Entreprise.id == current_user.id).first()
+        nom_e = entreprise.nom_entreprise if entreprise else "Une entreprise"
+        notify_all_club(
+            db,
+            "Demande de suppression",
+            f"L'entreprise « {nom_e} » demande la suppression de l'offre « {annonce.titre} ».",
+        )
+        db.commit()
+        return {"message": "Demande de suppression envoyée à l'administration."}
+
+    # Offre non validée → suppression directe
     db.delete(annonce)
     db.commit()
+    return {"message": "Annonce supprimée."}
 
 
 @router.get("/annonces/{annonce_id}/candidatures", response_model=List[CandidatOut])

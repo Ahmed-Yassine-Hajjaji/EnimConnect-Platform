@@ -77,9 +77,11 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(email, password);
-      const savedRole =
-        JSON.parse(atob(localStorage.getItem("access_token")!.split(".")[1])).role;
-      if (savedRole === "etudiant") navigate("/etudiant/tableau-de-bord");
+      const payload = JSON.parse(atob(localStorage.getItem("access_token")!.split(".")[1]));
+      const savedRole = payload.role;
+      if (payload.mcp) {
+        navigate("/changer-mot-de-passe");
+      } else if (savedRole === "etudiant") navigate("/etudiant/tableau-de-bord");
       else if (savedRole === "entreprise") navigate("/entreprise/tableau-de-bord");
       else if (savedRole === "club") navigate("/admin/interface");
     } catch (err: unknown) {

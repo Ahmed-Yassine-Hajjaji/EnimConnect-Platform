@@ -8,6 +8,7 @@ import AdminLayout from "./components/layout/AdminLayout";
 // Auth
 import LoginPage from "./pages/auth/LoginPage";
 import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
+import ForceChangePassword from "./pages/auth/ForceChangePassword";
 
 // Student Pages
 import DashboardEtudiant from "./pages/student/DashboardEtudiant";
@@ -44,6 +45,7 @@ export default function App() {
           {/* Auth Route */}
           <Route path="/" element={<LoginPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/changer-mot-de-passe" element={<ForceChangePassword />} />
 
           {/* Page de décision chef — standalone, sans auth */}
           <Route path="/decision/:validation_id" element={<DecisionPage />} />

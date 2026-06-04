@@ -65,6 +65,13 @@ export default function NotificationBell() {
     if (wasUnread) setUnread((v) => Math.max(0, v - 1));
   }
 
+  async function removeAll() {
+    if (!notifications.length) return;
+    await api.supprimerToutesNotifications();
+    setNotifications([]);
+    setUnread(0);
+  }
+
   return (
     <div ref={ref} className="relative">
       {/* Bell button */}
@@ -87,14 +94,24 @@ export default function NotificationBell() {
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-outline-variant">
             <span className="font-semibold text-on-surface text-sm">Notifications</span>
-            {unread > 0 && (
-              <button
-                onClick={markAllRead}
-                className="text-xs text-primary hover:underline font-medium"
-              >
-                Tout marquer comme lu
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              {unread > 0 && (
+                <button
+                  onClick={markAllRead}
+                  className="text-xs text-primary hover:underline font-medium"
+                >
+                  Tout marquer comme lu
+                </button>
+              )}
+              {notifications.length > 0 && (
+                <button
+                  onClick={removeAll}
+                  className="text-xs text-error hover:underline font-medium"
+                >
+                  Tout supprimer
+                </button>
+              )}
+            </div>
           </div>
 
           {/* List */}

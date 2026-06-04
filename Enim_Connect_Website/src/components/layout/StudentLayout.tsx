@@ -13,13 +13,14 @@ const NAV_LINKS = [
 
 export default function StudentLayout() {
   const navigate = useNavigate();
-  const { isAuthenticated, role, logout } = useAuth();
+  const { isAuthenticated, role, mustChangePassword, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) navigate("/", { replace: true });
+    else if (mustChangePassword) navigate("/changer-mot-de-passe", { replace: true });
     else if (role && role !== "etudiant") navigate("/", { replace: true });
-  }, [isAuthenticated, role, navigate]);
+  }, [isAuthenticated, role, mustChangePassword, navigate]);
 
   // Fermer le sidebar quand on change de route sur mobile
   function closeOnMobile() {
