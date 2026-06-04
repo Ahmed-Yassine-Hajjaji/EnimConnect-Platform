@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     N8N_SMTP_SENDER: str = "noreply@enimconnect.ma"
     N8N_SMTP_SSL: bool = False
 
+    # Brevo (ex-Sendinblue) — API HTTP pour emails transactionnels
+    BREVO_API_KEY: str = ""
+
     # Google OAuth — seul le domaine @enim.ac.ma est autorisé (étudiants)
     GOOGLE_CLIENT_ID: str = ""
 

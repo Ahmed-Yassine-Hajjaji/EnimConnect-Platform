@@ -1,40 +1,48 @@
-"""Envoi d'emails transactionnels via SMTP (réutilise la config N8N_SMTP_*)."""
-import ssl
-import smtplib
+"""Envoi d'emails transactionnels via l'API HTTP Brevo (ex-Sendinblue)."""
 import logging
-from email.message import EmailMessage
+import httpx
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
+
 
 def send_email(to_email: str, subject: str, html_body: str, text_body: str = "") -> bool:
-    """Envoie un email HTML (avec repli texte). Retourne True si l'envoi a réussi."""
-    host = settings.N8N_SMTP_HOST
-    if not host or not settings.N8N_SMTP_USER:
-        logger.warning("[email] SMTP non configuré — email non envoyé à %s", to_email)
+    """Envoie un email HTML via l'API Brevo. Retourne True si l'envoi a réussi."""
+    api_key = settings.BREVO_API_KEY
+    if not api_key:
+        logger.warning("[email] BREVO_API_KEY non configuré — email non envoyé à %s", to_email)
         return False
 
-    msg = EmailMessage()
-    msg["Subject"] = subject
-    msg["From"] = settings.N8N_SMTP_SENDER or settings.N8N_SMTP_USER
-    msg["To"] = to_email
-    msg.set_content(text_body or "Veuillez utiliser un client compatible HTML pour lire cet email.")
-    msg.add_alternative(html_body, subtype="html")
+    sender_email = settings.N8N_SMTP_SENDER or "noreply@enimconnect.ma"
+
+    payload = {
+        "sender": {"name": "EnimConnect", "email": sender_email},
+        "to": [{"email": to_email}],
+        "subject": subject,
+        "htmlContent": html_body,
+    }
+    if text_body:
+        payload["textContent"] = text_body
 
     try:
-        context = ssl.create_default_context()
-        if settings.N8N_SMTP_SSL:
-            with smtplib.SMTP_SSL(host, settings.N8N_SMTP_PORT, context=context, timeout=15) as server:
-                server.login(settings.N8N_SMTP_USER, settings.N8N_SMTP_PASS)
-                server.send_message(msg)
+        resp = httpx.post(
+            BREVO_API_URL,
+            json=payload,
+            headers={
+                "api-key": api_key,
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            timeout=15,
+        )
+        if resp.status_code in (200, 201):
+            logger.info("[email] envoyé à %s — %r", to_email, subject)
+            return True
         else:
-            with smtplib.SMTP(host, settings.N8N_SMTP_PORT, timeout=15) as server:
-                server.starttls(context=context)
-                server.login(settings.N8N_SMTP_USER, settings.N8N_SMTP_PASS)
-                server.send_message(msg)
-        logger.info("[email] envoyé à %s — %r", to_email, subject)
-        return True
+            logger.error("[email] échec envoi à %s: %s %s", to_email, resp.status_code, resp.text)
+            return False
     except Exception as e:
         logger.error("[email] échec envoi à %s: %s", to_email, e)
         return False
