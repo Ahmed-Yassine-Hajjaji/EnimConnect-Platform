@@ -292,15 +292,3 @@ web: uvicorn app.main:app --host 0.0.0.0 --port $PORT
 
 Définir `VITE_API_URL` dans les variables d'environnement Vercel.
 
----
-
-## Données initiales — Chefs de département
-
-Pour tester le workflow, insérez des chefs de département manuellement :
-
-```sql
-INSERT INTO chefs_departement (id, nom, email, departement) VALUES
-  (gen_random_uuid(), 'Prof. El Alami', 'el.alami@ensmr.ac.ma', 'Génie Informatique'),
-  (gen_random_uuid(), 'Prof. Benali', 'benali@ensmr.ac.ma', 'Génie Électrique'),
-  (gen_random_uuid(), 'Prof. Idrissi', 'idrissi@ensmr.ac.ma', 'Génie Civil');
-```
