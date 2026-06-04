@@ -13,6 +13,9 @@ docker compose -f docker-compose.prod.yml up -d --build
 echo "==> Attente du démarrage du backend (15s)..."
 sleep 15
 
+echo "==> Migrations Alembic..."
+docker compose -f docker-compose.prod.yml exec backend alembic upgrade head
+
 echo "==> Seed des chefs de département..."
 docker compose -f docker-compose.prod.yml exec backend python scripts/seed_chefs.py
 
