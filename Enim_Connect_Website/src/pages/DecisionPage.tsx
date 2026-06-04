@@ -2,10 +2,12 @@ import { useState, useEffect } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { DecisionInfo } from "../api/client";
+import usePageTitle from "../hooks/usePageTitle";
 
 type PageState = "loading" | "error" | "already_done" | "form" | "submitting" | "confirmed";
 
 export default function DecisionPage() {
+  usePageTitle("Décision de validation");
   const { validation_id } = useParams<{ validation_id: string }>();
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") ?? "";

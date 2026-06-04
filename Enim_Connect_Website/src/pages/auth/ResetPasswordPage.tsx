@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../../api/client";
+import usePageTitle from "../../hooks/usePageTitle";
 
 export default function ResetPasswordPage() {
+  usePageTitle("Réinitialisation du mot de passe");
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") ?? "";

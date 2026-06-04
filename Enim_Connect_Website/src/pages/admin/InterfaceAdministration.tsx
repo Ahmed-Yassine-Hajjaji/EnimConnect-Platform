@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, type Annonce } from '../../api/client';
+import usePageTitle from '../../hooks/usePageTitle';
 
 const STATUT: Record<string, { label: string; cls: string }> = {
   en_attente: { label: 'En attente', cls: 'bg-orange-50 text-orange-600' },
@@ -10,6 +11,7 @@ const STATUT: Record<string, { label: string; cls: string }> = {
 type Filter = 'toutes' | 'en_attente' | 'validee' | 'rejetee';
 
 export default function InterfaceAdministration() {
+  usePageTitle("Administration");
   const [annonces, setAnnonces] = useState<Annonce[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>('toutes');
@@ -96,7 +98,7 @@ export default function InterfaceAdministration() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2 bg-surface-container-low border border-outline-variant rounded-xl px-3 py-2 w-full sm:w-64 focus-within:border-primary transition-colors">
+        <div className="flex items-center gap-2 bg-surface-container-low border border-outline-variant rounded-xl px-3 py-2 w-full sm:w-80 focus-within:border-primary transition-colors">
           <span className="material-symbols-outlined text-on-surface-variant text-lg">search</span>
           <input
             type="text"

@@ -4,8 +4,10 @@ import { api, type Annonce, type Candidat } from "../../api/client";
 import OfferList from "../../components/OfferList";
 import CandidateList from "../../components/CandidateList";
 import CandidateDetail from "../../components/CandidateDetail";
+import usePageTitle from "../../hooks/usePageTitle";
 
 export default function GestionCandidats() {
+  usePageTitle("Gestion des candidats");
   const location = useLocation();
 
   const [annonces, setAnnonces] = useState<Annonce[]>([]);

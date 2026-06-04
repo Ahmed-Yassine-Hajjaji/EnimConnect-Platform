@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type Annonce } from '../../api/client';
+import usePageTitle from '../../hooks/usePageTitle';
 
 function CompanyAvatar({ name, logoUrl, size = 'md' }: { name?: string | null; logoUrl?: string | null; size?: 'sm' | 'md' }) {
   const cls = size === 'sm' ? 'w-8 h-8 rounded-lg text-xs' : 'w-10 h-10 rounded-xl text-sm';
@@ -18,6 +19,7 @@ interface Profil { nom: string; prenom: string; filiere?: string; niveau?: strin
 interface Candidature { id: string; annonce_id: string; date: string; titre_annonce?: string; nom_entreprise?: string; }
 
 export default function DashboardEtudiant() {
+  usePageTitle("Tableau de bord");
   const [profil, setProfil] = useState<Profil | null>(null);
   const [candidatures, setCandidatures] = useState<Candidature[]>([]);
   const [annonces, setAnnonces] = useState<Annonce[]>([]);

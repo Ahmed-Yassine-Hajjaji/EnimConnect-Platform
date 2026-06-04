@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, type AnnonceAdmin, type EntrepriseAvecOffres } from '../../api/client';
+import usePageTitle from '../../hooks/usePageTitle';
 
 type Vue = 'entreprise' | 'offres';
 type FilterStatut = 'toutes' | 'en_attente' | 'validee' | 'rejetee';
@@ -17,6 +18,7 @@ const STATUT_DEPT = {
 };
 
 export default function OffresAdmin() {
+  usePageTitle("Validation des offres");
   const [vue, setVue] = useState<Vue>('entreprise');
 
   // Vue entreprise
@@ -335,7 +337,7 @@ export default function OffresAdmin() {
                 </button>
               ))}
             </div>
-            <div className="flex items-center gap-2 bg-surface-container-low border border-outline-variant rounded-xl px-3 py-2 w-full sm:w-64 focus-within:border-primary transition-colors">
+            <div className="flex items-center gap-2 bg-surface-container-low border border-outline-variant rounded-xl px-3 py-2 w-full sm:w-80 focus-within:border-primary transition-colors">
               <span className="material-symbols-outlined text-on-surface-variant text-lg">search</span>
               <input
                 type="text"

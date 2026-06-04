@@ -1,3 +1,5 @@
+import usePageTitle from "../../hooks/usePageTitle";
+
 const FAQ = [
   {
     q: "Comment voir les offres de stage disponibles ?",
@@ -37,6 +39,7 @@ const FAQ = [
 ];
 
 export default function AideEtudiant() {
+  usePageTitle("Aide");
   return (
     <main className="min-h-screen px-10 pt-8 pb-12">
       <div className="max-w-3xl mx-auto">

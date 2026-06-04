@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { api, type ImportEtudiantsResult } from "../../api/client";
+import usePageTitle from "../../hooks/usePageTitle";
 import { NOMS_DEPARTEMENTS, DEPT_TO_FILIERES } from "../../constants/ensmr";
 
 // ─── CSV helpers ──────────────────────────────────────────────────────────────
@@ -585,6 +586,7 @@ function BulkDeleteEtudiantsModal({ etudiants, onClose, onDeleted }: { etudiants
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function DatabaseEtudiants() {
+  usePageTitle("Base étudiants");
   const [etudiants, setEtudiants] = useState<EtudiantAdmin[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -731,7 +733,7 @@ export default function DatabaseEtudiants() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Nom, email, compétence…"
+              placeholder="Nom, email…"
               className="bg-transparent text-sm text-on-surface placeholder-on-surface-variant outline-none w-full"
             />
           </div>

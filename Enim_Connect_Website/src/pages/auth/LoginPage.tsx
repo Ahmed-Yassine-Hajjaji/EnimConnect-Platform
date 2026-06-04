@@ -2,8 +2,10 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../api/client";
+import usePageTitle from "../../hooks/usePageTitle";
 
 export default function LoginPage() {
+  usePageTitle("Connexion");
   const navigate = useNavigate();
   const { login } = useAuth();
 

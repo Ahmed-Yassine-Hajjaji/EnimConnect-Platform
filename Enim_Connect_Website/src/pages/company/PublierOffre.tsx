@@ -2,8 +2,10 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
 import { ENSMR_DEPARTEMENTS } from "../../constants/ensmr";
+import usePageTitle from "../../hooks/usePageTitle";
 
 export default function PublierOffre() {
+  usePageTitle("Publier une offre");
   const navigate = useNavigate();
   const [titre, setTitre] = useState("");
   const [description, setDescription] = useState("");

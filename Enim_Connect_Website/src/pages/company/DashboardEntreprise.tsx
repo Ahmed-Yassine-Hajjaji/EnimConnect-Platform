@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, type Annonce, type EntrepriseProfile } from "../../api/client";
+import usePageTitle from "../../hooks/usePageTitle";
 
 const STATUT: Record<string, { label: string; cls: string }> = {
   en_attente: { label: "En attente", cls: "bg-orange-50 text-orange-600" },
@@ -9,6 +10,7 @@ const STATUT: Record<string, { label: string; cls: string }> = {
 };
 
 export default function DashboardEntreprise() {
+  usePageTitle("Tableau de bord");
   const navigate = useNavigate();
   const [annonces, setAnnonces] = useState<Annonce[]>([]);
   const [entreprise, setEntreprise] = useState<EntrepriseProfile | null>(null);

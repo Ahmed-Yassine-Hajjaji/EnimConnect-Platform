@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/client";
+import usePageTitle from "../../hooks/usePageTitle";
 
 interface Candidature {
   id: string;
@@ -12,6 +13,7 @@ interface Candidature {
 }
 
 export default function MesCandidatures() {
+  usePageTitle("Mes candidatures");
   const [candidatures, setCandidatures] = useState<Candidature[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

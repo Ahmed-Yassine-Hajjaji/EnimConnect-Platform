@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/client";
+import usePageTitle from "../../hooks/usePageTitle";
 
 interface AnnonceDetail {
   id: string;
@@ -15,6 +16,7 @@ interface AnnonceDetail {
 }
 
 export default function DetailsOffre() {
+  usePageTitle("Détail de l'offre");
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const [annonce, setAnnonce] = useState<AnnonceDetail | null>(null);

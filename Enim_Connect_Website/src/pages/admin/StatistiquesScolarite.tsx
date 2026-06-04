@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api/client";
+import usePageTitle from "../../hooks/usePageTitle";
 
 interface StatsEtudiants {
   total: number;
@@ -27,6 +28,7 @@ const DEPT_COLORS: Record<string, string> = {
 
 
 export default function StatistiquesScolarite() {
+  usePageTitle("Statistiques");
   const [statsEt, setStatsEt] = useState<StatsEtudiants | null>(null);
   const [statsGlob, setStatsGlob] = useState<StatsGlobales | null>(null);
   const [loading, setLoading] = useState(true);

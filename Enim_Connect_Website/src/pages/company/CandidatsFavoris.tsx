@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type EtudiantRecherche } from "../../api/client";
+import usePageTitle from "../../hooks/usePageTitle";
 import { NOMS_DEPARTEMENTS } from "../../constants/ensmr";
 
 const DEPARTEMENTS = ["Tous", ...NOMS_DEPARTEMENTS];
@@ -19,6 +20,7 @@ function initiales(nom: string, prenom: string) {
 }
 
 export default function CandidatsFavoris() {
+  usePageTitle("Base étudiants");
   const [etudiants, setEtudiants] = useState<EtudiantRecherche[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");

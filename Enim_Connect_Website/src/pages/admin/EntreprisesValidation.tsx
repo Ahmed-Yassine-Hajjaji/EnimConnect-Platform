@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "../../api/client";
+import usePageTitle from "../../hooks/usePageTitle";
 
 interface Entreprise {
   id: string;
@@ -214,6 +215,7 @@ function BulkDeleteEntreprisesModal({ entreprises, onClose, onDeleted }: { entre
 }
 
 export default function EntreprisesValidation() {
+  usePageTitle("Validation entreprises");
   const [entreprises, setEntreprises] = useState<Entreprise[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, type CVProfile } from '../../api/client';
 import { NOMS_DEPARTEMENTS, DEPT_TO_FILIERES } from '../../constants/ensmr';
+import usePageTitle from '../../hooks/usePageTitle';
 
 function ChangePasswordSection() {
   const [ancien, setAncien] = useState('');
@@ -66,6 +67,7 @@ interface Profil {
 const NIVEAUX = ['1A', '2A', '3A'];
 
 export default function ProfilCandidat() {
+  usePageTitle("Mon profil");
   const navigate = useNavigate();
   const photoRef = useRef<HTMLInputElement>(null);
   const cvRef = useRef<HTMLInputElement>(null);

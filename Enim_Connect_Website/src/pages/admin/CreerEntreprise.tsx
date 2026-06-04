@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
+import usePageTitle from "../../hooks/usePageTitle";
 
 const SECTEURS = [
   "Informatique & Numérique",
@@ -13,6 +14,7 @@ const SECTEURS = [
 ];
 
 export default function CreerEntreprise() {
+  usePageTitle("Créer un compte entreprise");
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

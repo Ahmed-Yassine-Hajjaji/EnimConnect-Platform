@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/client";
+import usePageTitle from "../../hooks/usePageTitle";
 import { NOMS_DEPARTEMENTS } from "../../constants/ensmr";
 
 interface Annonce {
@@ -24,6 +25,7 @@ const DUREES = [
 ];
 
 export default function RechercheStages() {
+  usePageTitle("Recherche de stages");
   const [query, setQuery] = useState("");
   const [deptFilter, setDeptFilter] = useState<string | null>(null);
   const [dureeFilter, setDureeFilter] = useState<string | null>(null);

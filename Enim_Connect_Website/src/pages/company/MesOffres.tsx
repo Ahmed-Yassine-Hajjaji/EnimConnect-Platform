@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { api, type Annonce, type ValidationDept } from "../../api/client";
+import usePageTitle from "../../hooks/usePageTitle";
 
 type Filter = "toutes" | "en_attente" | "validee" | "rejetee";
 
@@ -166,6 +167,7 @@ function OffreModal({ annonce, onClose }: { annonce: Annonce; onClose: () => voi
 }
 
 export default function MesOffres() {
+  usePageTitle("Mes offres");
   const [annonces, setAnnonces] = useState<Annonce[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>("toutes");

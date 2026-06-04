@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type EntrepriseProfile } from '../../api/client';
+import usePageTitle from '../../hooks/usePageTitle';
 
 function ChangePasswordSection() {
   const [ancien, setAncien] = useState('');
@@ -55,6 +56,7 @@ function ChangePasswordSection() {
 }
 
 export default function ProfilEntreprise() {
+  usePageTitle("Mon profil entreprise");
   const [profil, setProfil] = useState<EntrepriseProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
