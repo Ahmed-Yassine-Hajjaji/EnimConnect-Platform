@@ -8,6 +8,7 @@ interface Candidature {
   date: string;
   titre_annonce: string | null;
   nom_entreprise: string | null;
+  logo_url: string | null;
 }
 
 export default function MesCandidatures() {
@@ -72,9 +73,13 @@ export default function MesCandidatures() {
             >
               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                 <div className="flex gap-3 sm:gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center font-bold text-primary flex-shrink-0 text-sm">
-                    {(c.nom_entreprise ?? "?").slice(0, 2).toUpperCase()}
-                  </div>
+                  {c.logo_url ? (
+                    <img src={`${api.apiBase}${c.logo_url}`} alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center font-bold text-primary flex-shrink-0 text-sm">
+                      {(c.nom_entreprise ?? "?").slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
                   <div>
                     <h3 className="font-semibold text-on-surface mb-1">
                       {c.titre_annonce ?? "Offre"}

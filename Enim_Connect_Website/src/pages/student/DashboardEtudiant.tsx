@@ -2,6 +2,18 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type Annonce } from '../../api/client';
 
+function CompanyAvatar({ name, logoUrl, size = 'md' }: { name?: string | null; logoUrl?: string | null; size?: 'sm' | 'md' }) {
+  const cls = size === 'sm' ? 'w-8 h-8 rounded-lg text-xs' : 'w-10 h-10 rounded-xl text-sm';
+  if (logoUrl) {
+    return <img src={`${api.apiBase}${logoUrl}`} alt="" className={`${cls} object-cover flex-shrink-0`} />;
+  }
+  return (
+    <div className={`${cls} bg-primary/10 flex items-center justify-center font-bold text-primary flex-shrink-0`}>
+      {(name ?? '?').slice(0, 2).toUpperCase()}
+    </div>
+  );
+}
+
 interface Profil { nom: string; prenom: string; filiere?: string; niveau?: string; competences: string[]; }
 interface Candidature { id: string; annonce_id: string; date: string; titre_annonce?: string; nom_entreprise?: string; }
 
@@ -111,9 +123,7 @@ export default function DashboardEtudiant() {
                   )}
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center font-bold text-primary text-sm flex-shrink-0">
-                        {(a.nom_entreprise ?? '?').slice(0, 2).toUpperCase()}
-                      </div>
+                      <CompanyAvatar name={a.nom_entreprise} logoUrl={a.logo_url} />
                       <div>
                         <div className="font-semibold text-on-surface text-sm leading-tight">{a.titre}</div>
                         <div className="text-xs text-on-surface-variant">{a.nom_entreprise ?? 'Entreprise'}</div>
@@ -157,9 +167,7 @@ export default function DashboardEtudiant() {
                   <Link key={c.id} to={`/etudiant/offre/${c.annonce_id}`}
                     className="flex items-center gap-3 p-2 rounded-xl hover:bg-surface-container transition-colors"
                   >
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-xs font-bold text-primary flex-shrink-0">
-                      {(c.nom_entreprise ?? '?').slice(0, 2).toUpperCase()}
-                    </div>
+                    <CompanyAvatar name={c.nom_entreprise} size="sm" />
                     <div className="flex-1 min-w-0">
                       <div className="text-xs font-semibold text-on-surface truncate">{c.titre_annonce ?? 'Offre'}</div>
                       <div className="text-xs text-on-surface-variant">{c.nom_entreprise}</div>

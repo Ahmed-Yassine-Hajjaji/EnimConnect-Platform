@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, type EntrepriseProfile } from '../../api/client';
 
 function ChangePasswordSection() {
@@ -64,6 +64,9 @@ export default function ProfilEntreprise() {
   const [nomEntreprise, setNomEntreprise] = useState('');
   const [secteur, setSecteur] = useState('');
   const [ville, setVille] = useState('');
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     api.getMonEntreprise()
@@ -72,6 +75,7 @@ export default function ProfilEntreprise() {
         setNomEntreprise(e.nom_entreprise ?? '');
         setSecteur(e.secteur ?? '');
         setVille(e.ville ?? '');
+        setLogoUrl(e.logo_url ?? null);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -138,6 +142,56 @@ export default function ProfilEntreprise() {
               En attente de validation par le club EnimConnect
             </span>
           )}
+        </div>
+
+        {/* Logo upload */}
+        <div className="bg-surface-container-low rounded-2xl border border-outline-variant p-6 mb-6">
+          <h2 className="font-headline font-bold text-lg text-on-surface mb-4">Logo de l'entreprise</h2>
+          <div className="flex items-center gap-5">
+            <div className="w-20 h-20 rounded-2xl bg-primary/10 border border-outline-variant flex items-center justify-center overflow-hidden flex-shrink-0">
+              {logoUrl ? (
+                <img src={`${api.apiBase}${logoUrl}?t=${Date.now()}`} alt="Logo" className="w-full h-full object-cover" />
+              ) : (
+                <span className="material-symbols-outlined text-3xl text-on-surface-variant">business</span>
+              )}
+            </div>
+            <div>
+              <p className="text-sm text-on-surface-variant mb-3">
+                {logoUrl ? 'Votre logo est visible par les étudiants.' : 'Ajoutez un logo pour être plus visible auprès des étudiants.'}
+              </p>
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setUploadingLogo(true);
+                  setError('');
+                  try {
+                    const res = await api.uploadLogo(file);
+                    setLogoUrl(res.logo_url);
+                    setSuccess('Logo mis à jour avec succès.');
+                  } catch (err: unknown) {
+                    setError(err instanceof Error ? err.message : "Erreur lors de l'upload du logo");
+                  } finally {
+                    setUploadingLogo(false);
+                    if (logoInputRef.current) logoInputRef.current.value = '';
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => logoInputRef.current?.click()}
+                disabled={uploadingLogo}
+                className="flex items-center gap-2 px-4 py-2 border border-primary text-primary text-sm font-semibold rounded-xl hover:bg-primary/5 transition-colors disabled:opacity-60"
+              >
+                <span className="material-symbols-outlined text-base">{uploadingLogo ? 'progress_activity' : 'upload'}</span>
+                {uploadingLogo ? 'Upload…' : logoUrl ? 'Changer le logo' : 'Ajouter un logo'}
+              </button>
+            </div>
+          </div>
         </div>
 
         <form onSubmit={handleSave} className="bg-surface-container-low rounded-2xl border border-outline-variant p-6 space-y-5">

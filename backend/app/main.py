@@ -36,7 +36,9 @@ app.add_middleware(
 storage_path = settings.STORAGE_PATH
 os.makedirs(os.path.join(storage_path, "cvs"), exist_ok=True)
 os.makedirs(os.path.join(storage_path, "photos"), exist_ok=True)
+os.makedirs(os.path.join(storage_path, "logos"), exist_ok=True)
 app.mount("/storage/photos", StaticFiles(directory=os.path.join(storage_path, "photos")), name="photos")
+app.mount("/storage/logos", StaticFiles(directory=os.path.join(storage_path, "logos")), name="logos")
 
 # Routers
 app.include_router(auth.router)

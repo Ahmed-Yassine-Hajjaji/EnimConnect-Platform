@@ -14,6 +14,7 @@ class EntrepriseOut(BaseModel):
     nom_entreprise: str
     secteur: Optional[str] = None
     ville: Optional[str] = None
+    logo_url: Optional[str] = None
     valide: bool
     email: Optional[str] = None
 
@@ -30,6 +31,7 @@ class EntrepriseListItem(BaseModel):
     nom_entreprise: str
     secteur: Optional[str] = None
     ville: Optional[str] = None
+    logo_url: Optional[str] = None
     valide: bool
     email: str
 

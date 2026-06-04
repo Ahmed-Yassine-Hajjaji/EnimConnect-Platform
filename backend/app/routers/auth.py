@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from app.database import get_db
 from app.config import settings
 from app.limiter import limiter
@@ -63,7 +64,7 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 def login(body: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == body.email).first()
+    user = db.query(User).filter(func.lower(User.email) == body.email.strip().lower()).first()
     if not user or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
     if not user.is_active:
@@ -104,7 +105,7 @@ def forgot_password(
     Renvoie toujours la même réponse générique pour ne pas révéler l'existence d'un compte.
     L'envoi se fait en arrière-plan (timing constant, pas de fuite par latence).
     """
-    user = db.query(User).filter(User.email == body.email).first()
+    user = db.query(User).filter(func.lower(User.email) == body.email.strip().lower()).first()
     if user and user.is_active:
         token = generate_password_reset_token(str(user.id))
         reset_link = f"{settings.FRONTEND_URL}/reset-password?token={token}"

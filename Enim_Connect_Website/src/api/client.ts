@@ -129,6 +129,11 @@ export const api = {
   getMonEntreprise: () => apiJson<EntrepriseProfile>("/entreprises/me"),
   updateMonEntreprise: (body: object) =>
     apiJson("/entreprises/me", { method: "PUT", body: JSON.stringify(body) }),
+  uploadLogo: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return apiFetch("/entreprises/me/logo", { method: "POST", body: form }).then((r) => r.json());
+  },
   creerAnnonce: (body: object) =>
     apiJson("/entreprises/annonces", { method: "POST", body: JSON.stringify(body) }),
   getMesAnnonces: () => apiJson<Annonce[]>("/entreprises/annonces"),
@@ -290,6 +295,7 @@ export interface Annonce {
   created_at: string;
   nom_entreprise?: string;
   ville?: string;
+  logo_url?: string;
   motif?: string;
   match_competences?: string[] | null;
   validations_dept?: ValidationDept[];
@@ -387,6 +393,7 @@ export interface EntrepriseProfile {
   nom_entreprise: string;
   secteur?: string;
   ville?: string;
+  logo_url?: string;
   valide: boolean;
   email: string;
 }

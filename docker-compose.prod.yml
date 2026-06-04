@@ -9,6 +9,8 @@ services:
       # En prod : les webhooks N8n passent par le réseau Docker interne
       - N8N_WEBHOOK_URL=http://n8n:5678/webhook/chef-validation
       - N8N_COMPANY_WEBHOOK_URL=http://n8n:5678/webhook/company-decision
+      - FRONTEND_URL=https://enimconnect.duckdns.org
+      - BACKEND_URL=https://enimconnect.duckdns.org
     volumes:
       # Volume nommé pour persister CVs et photos (pas de bind mount)
       - backend_storage:/app/storage

@@ -13,6 +13,7 @@ class Entreprise(Base):
     nom_entreprise = Column(String, nullable=False)
     secteur = Column(String)
     ville = Column(String)
+    logo_url = Column(String, nullable=True)
     valide = Column(Boolean, default=False, nullable=False)
     valide_par = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     valide_le = Column(DateTime, nullable=True)

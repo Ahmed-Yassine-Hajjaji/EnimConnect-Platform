@@ -1,7 +1,10 @@
+import os
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Query
+import shutil
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Query, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import Optional, List
+from app.config import settings
 from app.database import get_db
 from app.models.user import User
 from app.models.entreprise import Entreprise
@@ -55,6 +58,40 @@ def update_my_profile(
     data = EntrepriseOut.model_validate(entreprise)
     data.email = current_user.email
     return data
+
+
+MAX_LOGO_SIZE = 5 * 1024 * 1024  # 5 Mo
+
+
+@router.post("/me/logo")
+def upload_logo(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_entreprise),
+    db: Session = Depends(get_db),
+):
+    allowed = {"image/jpeg", "image/png", "image/webp"}
+    if file.content_type not in allowed:
+        raise HTTPException(status_code=400, detail="Format d'image non supporté (jpeg, png, webp)")
+
+    contents = file.file.read(MAX_LOGO_SIZE + 1)
+    if len(contents) > MAX_LOGO_SIZE:
+        raise HTTPException(status_code=413, detail="Fichier trop volumineux (max 5 Mo)")
+
+    logos_dir = os.path.join(settings.STORAGE_PATH, "logos")
+    os.makedirs(logos_dir, exist_ok=True)
+
+    ext = file.filename.rsplit(".", 1)[-1] if "." in file.filename else "jpg"
+    filename = f"{current_user.id}.{ext}"
+    path = os.path.join(logos_dir, filename)
+
+    with open(path, "wb") as f:
+        f.write(contents)
+
+    entreprise = db.query(Entreprise).filter(Entreprise.id == current_user.id).first()
+    entreprise.logo_url = f"/storage/logos/{filename}"
+    db.commit()
+
+    return {"logo_url": entreprise.logo_url}
 
 
 @router.post("/annonces", status_code=status.HTTP_201_CREATED)

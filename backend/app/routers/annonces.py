@@ -32,6 +32,7 @@ def _build_annonce_out(annonce: Annonce, entreprises_map: dict, match=None) -> A
         created_at=annonce.created_at,
         nom_entreprise=entreprise.nom_entreprise if entreprise else None,
         ville=entreprise.ville if entreprise else None,
+        logo_url=entreprise.logo_url if entreprise else None,
         match_competences=match or None,
     )
 

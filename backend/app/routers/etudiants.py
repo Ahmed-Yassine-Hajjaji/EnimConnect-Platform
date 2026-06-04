@@ -2,7 +2,7 @@ import os
 import uuid
 import shutil
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks, Request
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User, RoleEnum
@@ -175,6 +175,7 @@ def get_my_candidatures(
                 date=c.date,
                 titre_annonce=annonce.titre if annonce else None,
                 nom_entreprise=entreprise.nom_entreprise if entreprise else None,
+                logo_url=entreprise.logo_url if entreprise else None,
             )
         )
     return result
@@ -218,10 +219,19 @@ def get_cv_file(
     if not storage_service.cv_exists(etudiant_id):
         raise HTTPException(status_code=404, detail="Fichier CV introuvable")
 
-    # En S3 : on redirige vers une URL présignée courte (le PDF est servi depuis
-    # le domaine S3, ce qui isole le risque XSS de notre domaine).
+    # Streaming du PDF à travers le backend (évite les problèmes CORS avec S3).
     if storage_service.is_s3():
-        return RedirectResponse(url=storage_service.cv_presigned_url(etudiant_id), status_code=307)
+        content = storage_service.read_cv(etudiant_id)
+        if not content:
+            raise HTTPException(status_code=404, detail="Fichier CV introuvable sur S3")
+        return Response(
+            content=content,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="cv_{etudiant_id}.pdf"',
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
 
     return FileResponse(
         path=storage_service.local_cv_path(etudiant_id),

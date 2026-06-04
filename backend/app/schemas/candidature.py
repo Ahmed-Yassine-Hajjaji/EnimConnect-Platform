@@ -11,6 +11,7 @@ class CandidatureOut(BaseModel):
     date: datetime
     titre_annonce: Optional[str] = None
     nom_entreprise: Optional[str] = None
+    logo_url: Optional[str] = None
 
     @field_serializer("id", "etudiant_id", "annonce_id")
     def serialize_uuid(self, v: UUID) -> str:

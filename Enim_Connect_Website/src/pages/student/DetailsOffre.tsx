@@ -10,6 +10,7 @@ interface AnnonceDetail {
   duree_mois: number | null;
   nom_entreprise: string | null;
   ville: string | null;
+  logo_url: string | null;
   created_at: string;
 }
 
@@ -91,9 +92,13 @@ export default function DetailsOffre() {
         <div className="lg:col-span-8 space-y-6">
           <div className="bg-gradient-to-br from-primary/5 to-secondary/5 rounded-2xl border border-primary/20 p-5 sm:p-8">
             <div className="flex items-start gap-4 sm:gap-5">
-              <div className="w-16 h-16 rounded-2xl bg-white border border-outline-variant flex items-center justify-center font-bold text-primary text-lg shadow-sm">
-                {(annonce.nom_entreprise ?? "?").slice(0, 2).toUpperCase()}
-              </div>
+              {annonce.logo_url ? (
+                <img src={`${api.apiBase}${annonce.logo_url}`} alt="" className="w-16 h-16 rounded-2xl object-cover border border-outline-variant shadow-sm" />
+              ) : (
+                <div className="w-16 h-16 rounded-2xl bg-white border border-outline-variant flex items-center justify-center font-bold text-primary text-lg shadow-sm">
+                  {(annonce.nom_entreprise ?? "?").slice(0, 2).toUpperCase()}
+                </div>
+              )}
               <div className="flex-1">
                 <h1 className="font-headline font-bold text-2xl text-on-surface mb-2">
                   {annonce.titre}

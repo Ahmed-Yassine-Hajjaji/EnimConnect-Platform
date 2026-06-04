@@ -11,6 +11,7 @@ interface Annonce {
   duree_mois: number | null;
   nom_entreprise: string | null;
   ville: string | null;
+  logo_url: string | null;
   created_at: string;
   match_competences?: string[] | null;
 }
@@ -156,9 +157,13 @@ export default function RechercheStages() {
                 >
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                     <div className="flex gap-3 sm:gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center font-bold text-primary flex-shrink-0 text-sm">
-                        {(annonce.nom_entreprise ?? "?").slice(0, 2).toUpperCase()}
-                      </div>
+                      {annonce.logo_url ? (
+                        <img src={`${api.apiBase}${annonce.logo_url}`} alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
+                      ) : (
+                        <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center font-bold text-primary flex-shrink-0 text-sm">
+                          {(annonce.nom_entreprise ?? "?").slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
                       <div>
                         <h3 className="font-semibold text-on-surface mb-1">{annonce.titre}</h3>
                         <div className="text-sm text-on-surface-variant mb-3">
