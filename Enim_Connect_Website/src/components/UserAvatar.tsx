@@ -24,7 +24,8 @@ export default function UserAvatar({ role, className = "" }: Props) {
     } else if (role === "entreprise") {
       api.getMonEntreprise()
         .then((data: any) => {
-          setInitial((data.email?.[0] ?? "E").toUpperCase());
+          setInitial((data.nom_entreprise?.[0] ?? data.email?.[0] ?? "E").toUpperCase());
+          if (data.logo_url) setPhotoUrl(`${api.apiBase}${data.logo_url}`);
         })
         .catch(() => {});
     } else if (role === "club") {

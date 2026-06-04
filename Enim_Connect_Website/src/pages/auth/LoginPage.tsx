@@ -114,7 +114,8 @@ export default function LoginPage() {
     <div className="min-h-screen flex">
       {/* Left Panel */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-tertiary"></div>
+        <img src="/sideimage.jpeg" alt="" className="absolute inset-0 w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-black/40"></div>
         <div className="relative z-10 flex flex-col justify-end p-12 text-white">
           <div className="mb-6">
             <div className="flex items-center gap-3 mb-8">
