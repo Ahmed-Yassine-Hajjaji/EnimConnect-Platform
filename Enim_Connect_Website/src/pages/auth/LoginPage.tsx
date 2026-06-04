@@ -1,13 +1,29 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../api/client";
 import usePageTitle from "../../hooks/usePageTitle";
 
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: Record<string, unknown>) => void;
+          renderButton: (el: HTMLElement, config: Record<string, unknown>) => void;
+        };
+      };
+    };
+  }
+}
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
+
 export default function LoginPage() {
   usePageTitle("Connexion");
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, googleLogin } = useAuth();
+  const googleBtnRef = useRef<HTMLDivElement>(null);
 
   const [mode, setMode] = useState<"login" | "forgot">("login");
   const [email, setEmail] = useState("");
@@ -15,6 +31,44 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const handleGoogleResponse = useCallback(
+    async (response: { credential: string }) => {
+      setError(null);
+      setLoading(true);
+      try {
+        await googleLogin(response.credential);
+        navigate("/etudiant/tableau-de-bord");
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Erreur Google Auth");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [googleLogin, navigate]
+  );
+
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID || !googleBtnRef.current) return;
+    const interval = setInterval(() => {
+      if (window.google?.accounts?.id) {
+        clearInterval(interval);
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleGoogleResponse,
+        });
+        window.google.accounts.id.renderButton(googleBtnRef.current!, {
+          theme: "outline",
+          size: "large",
+          width: "400",
+          text: "signin_with",
+          shape: "pill",
+          locale: "fr",
+        });
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  }, [handleGoogleResponse]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -187,6 +241,20 @@ export default function LoginPage() {
                 )}
                 Se connecter
               </button>
+
+              {GOOGLE_CLIENT_ID && (
+                <>
+                  <div className="flex items-center gap-3 my-1">
+                    <div className="flex-1 h-px bg-outline-variant" />
+                    <span className="text-xs text-on-surface-variant font-medium">ou</span>
+                    <div className="flex-1 h-px bg-outline-variant" />
+                  </div>
+                  <div ref={googleBtnRef} className="flex justify-center" />
+                  <p className="text-xs text-on-surface-variant text-center">
+                    Réservé aux étudiants ENIM (<span className="font-medium">@enim.ac.ma</span>)
+                  </p>
+                </>
+              )}
             </form>
           ) : (
             <form onSubmit={handleForgot} className="space-y-5">

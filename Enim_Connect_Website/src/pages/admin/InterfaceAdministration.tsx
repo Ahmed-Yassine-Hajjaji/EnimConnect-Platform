@@ -98,7 +98,7 @@ export default function InterfaceAdministration() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2 bg-surface-container-low border border-outline-variant rounded-xl px-3 py-2 w-full sm:w-80 focus-within:border-primary transition-colors">
+        <div className="flex items-center gap-2 bg-surface-container-low border border-outline-variant rounded-xl px-3 py-2 w-full sm:flex-1 focus-within:border-primary transition-colors">
           <span className="material-symbols-outlined text-on-surface-variant text-lg">search</span>
           <input
             type="text"

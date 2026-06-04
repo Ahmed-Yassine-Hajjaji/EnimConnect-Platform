@@ -28,6 +28,7 @@ services:
       dockerfile: Enim_Connect_Website/Dockerfile.prod
       args:
         VITE_API_URL: "https://enimconnect.duckdns.org"
+        VITE_GOOGLE_CLIENT_ID: "463110960490-8s0r5pf37o04inm4ihlitjelmnii64bv.apps.googleusercontent.com"
     ports:
       - "80:80"
       - "443:443"

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/client";
 import usePageTitle from "../../hooks/usePageTitle";
-import { NOMS_DEPARTEMENTS } from "../../constants/ensmr";
+
 
 interface Annonce {
   id: string;
@@ -27,7 +27,6 @@ const DUREES = [
 export default function RechercheStages() {
   usePageTitle("Recherche de stages");
   const [query, setQuery] = useState("");
-  const [deptFilter, setDeptFilter] = useState<string | null>(null);
   const [dureeFilter, setDureeFilter] = useState<string | null>(null);
   const [annonces, setAnnonces] = useState<Annonce[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,14 +49,13 @@ export default function RechercheStages() {
       a.titre.toLowerCase().includes(q) ||
       (a.nom_entreprise ?? "").toLowerCase().includes(q) ||
       a.departement.toLowerCase().includes(q);
-    const matchDept = !deptFilter || a.departement === deptFilter;
     const matchDuree =
       !activeDuree ||
       (a.duree_mois !== null &&
         a.duree_mois !== undefined &&
         a.duree_mois >= activeDuree.min &&
         a.duree_mois <= activeDuree.max);
-    return matchText && matchDept && matchDuree;
+    return matchText && matchDuree;
   });
 
   return (
@@ -85,21 +83,6 @@ export default function RechercheStages() {
           {/* Filter dropdowns */}
           <div className="flex flex-col sm:flex-row gap-2">
             <select
-              value={deptFilter ?? ""}
-              onChange={(e) => setDeptFilter(e.target.value || null)}
-              className={`flex-1 sm:flex-none border rounded-xl px-3 py-2 text-sm outline-none transition-colors ${
-                deptFilter
-                  ? "border-primary bg-primary/5 text-primary font-medium"
-                  : "border-outline-variant bg-surface-container text-on-surface-variant"
-              }`}
-            >
-              <option value="">Tous les départements</option>
-              {NOMS_DEPARTEMENTS.map((d) => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
-
-            <select
               value={dureeFilter ?? ""}
               onChange={(e) => setDureeFilter(e.target.value || null)}
               className={`flex-1 sm:flex-none border rounded-xl px-3 py-2 text-sm outline-none transition-colors ${
@@ -114,9 +97,9 @@ export default function RechercheStages() {
               ))}
             </select>
 
-            {(deptFilter || dureeFilter) && (
+            {dureeFilter && (
               <button
-                onClick={() => { setDeptFilter(null); setDureeFilter(null); }}
+                onClick={() => { setDureeFilter(null); }}
                 className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 transition-colors text-sm font-medium"
               >
                 <span className="material-symbols-outlined text-base">filter_alt_off</span>

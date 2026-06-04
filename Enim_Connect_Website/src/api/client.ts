@@ -88,6 +88,15 @@ export const api = {
     clearTokens();
   },
 
+  googleLogin: async (credential: string) => {
+    const data = await apiJson<{ access_token: string; refresh_token: string }>(
+      "/auth/google",
+      { method: "POST", body: JSON.stringify({ credential }) }
+    );
+    setTokens(data.access_token, data.refresh_token);
+    return data;
+  },
+
   forgotPassword: (email: string) =>
     apiJson<{ message: string }>("/auth/forgot-password", {
       method: "POST",

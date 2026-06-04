@@ -1,3 +1,4 @@
+from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -22,11 +23,17 @@ from app.services.token_service import (
 )
 from app.services.email_service import send_password_reset_email
 from app.middleware.auth_middleware import get_current_user
+from google.oauth2 import id_token as google_id_token
+from google.auth.transport import requests as google_requests
 
 
 class ChangePasswordRequest(BaseModel):
     ancien_mot_de_passe: str
     nouveau_mot_de_passe: str
+
+
+class GoogleAuthRequest(BaseModel):
+    credential: str
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -61,6 +68,54 @@ def register(request: Request, body: RegisterRequest, db: Session = Depends(get_
 
     db.commit()
     return {"message": "Compte créé avec succès"}
+
+
+@router.post("/google", response_model=TokenResponse)
+@limiter.limit("10/minute")
+def google_login(request: Request, body: GoogleAuthRequest, db: Session = Depends(get_db)):
+    """Authentification via Google — réservée aux étudiants @enim.ac.ma."""
+    if not settings.GOOGLE_CLIENT_ID:
+        raise HTTPException(status_code=500, detail="Google OAuth non configuré")
+
+    try:
+        idinfo = google_id_token.verify_oauth2_token(
+            body.credential, google_requests.Request(), settings.GOOGLE_CLIENT_ID
+        )
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Token Google invalide")
+
+    email = idinfo.get("email", "").lower().strip()
+    if not email.endswith("@enim.ac.ma"):
+        raise HTTPException(
+            status_code=403,
+            detail="Seuls les comptes @enim.ac.ma sont autorisés à se connecter avec Google.",
+        )
+
+    user = db.query(User).filter(func.lower(User.email) == email).first()
+
+    if not user:
+        # Créer automatiquement le compte étudiant
+        user = User(
+            email=email,
+            password_hash=hash_password(uuid4().hex),  # mot de passe aléatoire
+            role=RoleEnum.etudiant,
+        )
+        db.add(user)
+        db.flush()
+
+        prenom = idinfo.get("given_name", "")
+        nom = idinfo.get("family_name", "")
+        etudiant = Etudiant(id=user.id, nom=nom, prenom=prenom)
+        db.add(etudiant)
+        db.commit()
+    elif not user.is_active:
+        raise HTTPException(status_code=403, detail="Compte désactivé")
+
+    token_data = {"sub": str(user.id), "role": user.role}
+    return TokenResponse(
+        access_token=create_access_token(token_data),
+        refresh_token=create_refresh_token(token_data),
+    )
 
 
 @router.post("/login", response_model=TokenResponse)

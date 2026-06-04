@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     N8N_SMTP_SENDER: str = "noreply@enimconnect.ma"
     N8N_SMTP_SSL: bool = False
 
+    # Google OAuth — seul le domaine @enim.ac.ma est autorisé (étudiants)
+    GOOGLE_CLIENT_ID: str = ""
+
     # Phase de test : si renseigné, TOUTES les notifications de décision destinées
     # aux entreprises sont redirigées vers cette adresse (au lieu de l'email réel
     # de l'entreprise), comme les CHEF_*_EMAIL pour les chefs. Laisser vide en prod.
