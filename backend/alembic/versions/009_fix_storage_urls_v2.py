@@ -1,21 +1,20 @@
-"""migrate storage URLs from /storage/ to /api/
+"""fix remaining storage URLs not caught by migration 008
 
-Revision ID: 008
-Revises: 007
+Revision ID: 009
+Revises: 008
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = "008"
-down_revision = "007"
+revision = "009"
+down_revision = "008"
 branch_labels = None
 depends_on = None
 
 
 def upgrade():
     conn = op.get_bind()
-    # Fix logo_url: any old storage path -> /api/logos/UUID
-    # Covers both /storage/logos/... and ./storage/logos/... formats
+    # Fix any logo_url still not in /api/logos/ format
     conn.execute(
         sa.text("""
             UPDATE entreprises
@@ -24,7 +23,7 @@ def upgrade():
               AND logo_url NOT LIKE '/api/logos/%'
         """)
     )
-    # Fix photo_url: any old storage path -> /api/photos/UUID
+    # Fix any photo_url still not in /api/photos/ format
     conn.execute(
         sa.text("""
             UPDATE etudiants
