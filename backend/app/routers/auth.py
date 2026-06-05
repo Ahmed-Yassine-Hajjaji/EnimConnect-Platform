@@ -201,6 +201,7 @@ def reset_password(
         )
 
     user.password_hash = hash_password(body.nouveau_mot_de_passe)
+    user.must_change_password = False
     db.commit()
     return {"message": "Mot de passe réinitialisé avec succès. Vous pouvez maintenant vous connecter."}
 
