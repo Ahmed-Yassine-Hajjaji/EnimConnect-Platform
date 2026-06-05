@@ -40,10 +40,9 @@ os.makedirs(os.path.join(storage_path, "cvs"), exist_ok=True)
 os.makedirs(os.path.join(storage_path, "photos"), exist_ok=True)
 os.makedirs(os.path.join(storage_path, "logos"), exist_ok=True)
 
-# Keep static mounts as fallback for old local URLs (/storage/photos/*, /storage/logos/*)
-if not storage_service.is_s3():
-    app.mount("/storage/photos", StaticFiles(directory=os.path.join(storage_path, "photos")), name="photos")
-    app.mount("/storage/logos", StaticFiles(directory=os.path.join(storage_path, "logos")), name="logos")
+# Static mounts for photos/logos (always local, even when CVs use S3)
+app.mount("/storage/photos", StaticFiles(directory=os.path.join(storage_path, "photos")), name="photos")
+app.mount("/storage/logos", StaticFiles(directory=os.path.join(storage_path, "logos")), name="logos")
 
 # Routers
 app.include_router(auth.router)

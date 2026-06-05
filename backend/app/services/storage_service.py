@@ -111,41 +111,63 @@ def cv_presigned_url(etudiant_id: str) -> Optional[str]:
     )
 
 
+# ── Local-only helpers (photos & logos always on disk, never S3) ─────────────
+
+_EXT_CT = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}
+
+
+def _save_local(key: str, content: bytes) -> None:
+    path = os.path.join(settings.STORAGE_PATH, key)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "wb") as f:
+        f.write(content)
+
+
+def _read_local(key: str) -> Optional[bytes]:
+    path = os.path.join(settings.STORAGE_PATH, key)
+    if not os.path.exists(path):
+        return None
+    with open(path, "rb") as f:
+        return f.read()
+
+
 # ── Photos ───────────────────────────────────────────────────────────────────
 
 def save_photo(user_id: str, content: bytes, ext: str = "jpg") -> str:
-    key = f"photos/{user_id}.{ext}"
-    content_type = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}.get(ext, "image/jpeg")
-    _save_file(key, content, content_type)
+    # Remove old files with different extensions
+    for old_ext in ("jpg", "jpeg", "png", "webp"):
+        old_path = os.path.join(settings.STORAGE_PATH, f"photos/{user_id}.{old_ext}")
+        if os.path.exists(old_path):
+            os.remove(old_path)
+    _save_local(f"photos/{user_id}.{ext}", content)
     return f"/api/photos/{user_id}"
 
 
 def read_photo(user_id: str) -> Optional[tuple]:
     """Returns (bytes, content_type) or None."""
     for ext in ("jpg", "jpeg", "png", "webp"):
-        key = f"photos/{user_id}.{ext}"
-        data = _read_file(key)
+        data = _read_local(f"photos/{user_id}.{ext}")
         if data:
-            ct = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}[ext]
-            return data, ct
+            return data, _EXT_CT[ext]
     return None
 
 
 # ── Logos ────────────────────────────────────────────────────────────────────
 
 def save_logo(entreprise_id: str, content: bytes, ext: str = "jpg") -> str:
-    key = f"logos/{entreprise_id}.{ext}"
-    content_type = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}.get(ext, "image/jpeg")
-    _save_file(key, content, content_type)
+    # Remove old files with different extensions
+    for old_ext in ("jpg", "jpeg", "png", "webp"):
+        old_path = os.path.join(settings.STORAGE_PATH, f"logos/{entreprise_id}.{old_ext}")
+        if os.path.exists(old_path):
+            os.remove(old_path)
+    _save_local(f"logos/{entreprise_id}.{ext}", content)
     return f"/api/logos/{entreprise_id}"
 
 
 def read_logo(entreprise_id: str) -> Optional[tuple]:
     """Returns (bytes, content_type) or None."""
     for ext in ("jpg", "jpeg", "png", "webp"):
-        key = f"logos/{entreprise_id}.{ext}"
-        data = _read_file(key)
+        data = _read_local(f"logos/{entreprise_id}.{ext}")
         if data:
-            ct = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}[ext]
-            return data, ct
+            return data, _EXT_CT[ext]
     return None
