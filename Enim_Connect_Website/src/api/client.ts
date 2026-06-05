@@ -183,9 +183,10 @@ export const api = {
     apiFetch(`/club/etudiants/${id}`, { method: "DELETE" }),
   supprimerEntreprise: (id: string) =>
     apiFetch(`/club/entreprises/${id}`, { method: "DELETE" }),
-  importEtudiants: async (file: File): Promise<ImportEtudiantsResult> => {
+  importEtudiants: async (file: File, envoyerEmails = false): Promise<ImportEtudiantsResult> => {
     const form = new FormData();
     form.append("file", file);
+    form.append("envoyer_emails", envoyerEmails ? "true" : "false");
     const res = await apiFetch("/club/import-etudiants", { method: "POST", body: form });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Erreur réseau" }));
@@ -463,4 +464,5 @@ export interface ImportEtudiantErreur {
 export interface ImportEtudiantsResult {
   crees: ImportEtudiantLigne[];
   erreurs: ImportEtudiantErreur[];
+  emails_envoyes?: number;
 }

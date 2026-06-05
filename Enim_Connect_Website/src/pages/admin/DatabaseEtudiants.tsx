@@ -316,6 +316,7 @@ function ImportEtudiantsModal({ onClose, onImported }: { onClose: () => void; on
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ImportEtudiantsResult | null>(null);
+  const [envoyerEmails, setEnvoyerEmails] = useState(false);
 
   function telechargerModele() {
     downloadCsv("modele_import_etudiants.csv", [TEMPLATE_HEADER, ...TEMPLATE_EXEMPLE]);
@@ -335,7 +336,7 @@ function ImportEtudiantsModal({ onClose, onImported }: { onClose: () => void; on
     if (!file) return;
     setLoading(true); setError(null);
     try {
-      const res = await api.importEtudiants(file);
+      const res = await api.importEtudiants(file, envoyerEmails);
       setResult(res);
       if (res.crees.length > 0) onImported();
     } catch (e: unknown) {
@@ -417,6 +418,21 @@ function ImportEtudiantsModal({ onClose, onImported }: { onClose: () => void; on
 
               {error && <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl">{error}</div>}
 
+              {/* Option envoi par email */}
+              <label className="flex items-start gap-3 p-3 bg-surface-container rounded-xl cursor-pointer hover:bg-surface-container-high transition-colors">
+                <input type="checkbox" checked={envoyerEmails} onChange={(e) => setEnvoyerEmails(e.target.checked)}
+                  className="w-4 h-4 mt-0.5 rounded border-outline-variant accent-primary cursor-pointer" />
+                <div>
+                  <span className="text-sm font-medium text-on-surface flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-base text-primary">mail</span>
+                    Envoyer les identifiants par email
+                  </span>
+                  <p className="text-xs text-on-surface-variant mt-0.5">
+                    Chaque étudiant recevra un email avec son adresse et son mot de passe temporaire.
+                  </p>
+                </div>
+              </label>
+
               <div className="flex gap-3">
                 <button onClick={onClose} className="flex-1 btn-ghost">Annuler</button>
                 <button onClick={handleSubmit} disabled={!file || loading}
@@ -441,6 +457,7 @@ function ImportEtudiantsModal({ onClose, onImported }: { onClose: () => void; on
                 <p className="text-sm font-medium text-on-surface">
                   {result.crees.length} compte(s) créé(s)
                   {aEchoue && ` · ${result.erreurs.length} profil(s) refusé(s)`}
+                  {(result.emails_envoyes ?? 0) > 0 && ` · ${result.emails_envoyes} email(s) envoyé(s)`}
                 </p>
               </div>
 

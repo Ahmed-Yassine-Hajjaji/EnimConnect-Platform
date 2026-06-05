@@ -6,9 +6,10 @@ import secrets
 import string
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Body, BackgroundTasks, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Body, BackgroundTasks, UploadFile, File, Form
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from app.config import settings
 from app.database import get_db
 from app.models.user import User, RoleEnum
 from app.models.etudiant import Etudiant
@@ -25,6 +26,7 @@ from app.services.notification_service import create_notification
 from app.services.auth_service import hash_password
 from app.tasks.embed_annonce import embed_annonce_background
 from app.constants.ensmr import TOUS_LES_DEPARTEMENTS, FILIERE_TO_DEPARTEMENT
+from app.services.email_service import send_email
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _NIVEAUX_VALIDES = {"1A", "2A", "3A"}
@@ -712,6 +714,7 @@ def _detect_delimiter(sample: str) -> str:
 @router.post("/import-etudiants", status_code=200)
 async def import_etudiants(
     file: UploadFile = File(...),
+    envoyer_emails: bool = Form(False),
     current_user: User = Depends(get_current_club),
     db: Session = Depends(get_db),
 ):
@@ -844,7 +847,43 @@ async def import_etudiants(
         crees.append({**v, "mot_de_passe": mot_de_passe})
 
     db.commit()
-    return {"crees": crees, "erreurs": erreurs}
+
+    # Envoi des identifiants par email si demandé
+    emails_envoyes = 0
+    if envoyer_emails and crees:
+        frontend_url = settings.FRONTEND_URL.rstrip("/")
+        for c in crees:
+            html = f"""\
+<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#1a1c1e">
+  <h2 style="color:#1a4cc4">EnimConnect</h2>
+  <p>Bonjour <strong>{c['prenom']} {c['nom']}</strong>,</p>
+  <p>Votre compte étudiant sur la plateforme EnimConnect a été créé. Voici vos identifiants de connexion :</p>
+  <div style="background:#f0f4ff;border:1px solid #c8d6f0;border-radius:10px;padding:16px;margin:20px 0">
+    <p style="margin:0 0 8px"><strong>Email :</strong> {c['email']}</p>
+    <p style="margin:0"><strong>Mot de passe temporaire :</strong> <code style="background:#e8edf5;padding:2px 8px;border-radius:4px">{c['mot_de_passe']}</code></p>
+  </div>
+  <p>Lors de votre première connexion, vous serez invité(e) à choisir un nouveau mot de passe sécurisé.</p>
+  <p style="text-align:center;margin:24px 0">
+    <a href="{frontend_url}/login"
+       style="background:#1a4cc4;color:#fff;text-decoration:none;padding:12px 28px;
+              border-radius:10px;font-weight:bold;display:inline-block">
+      Se connecter
+    </a>
+  </p>
+  <p style="font-size:13px;color:#5a5d63">Ne partagez pas ce mot de passe. Si vous n'êtes pas étudiant(e) à l'ENSMR, ignorez cet email.</p>
+</div>"""
+            text = (
+                f"Bonjour {c['prenom']} {c['nom']},\n\n"
+                f"Votre compte EnimConnect a été créé.\n"
+                f"Email : {c['email']}\n"
+                f"Mot de passe temporaire : {c['mot_de_passe']}\n\n"
+                f"Connectez-vous sur {frontend_url}/login\n"
+                "Vous devrez changer votre mot de passe à la première connexion."
+            )
+            if send_email(c["email"], "Vos identifiants EnimConnect", html, text):
+                emails_envoyes += 1
+
+    return {"crees": crees, "erreurs": erreurs, "emails_envoyes": emails_envoyes}
 
 
 # ─── Suppression en masse ──────────────────────────────────────────────────────
