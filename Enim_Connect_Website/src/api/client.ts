@@ -118,6 +118,8 @@ export const api = {
     form.append("file", file);
     return apiFetch("/etudiants/me/photo", { method: "POST", body: form }).then((r) => r.json());
   },
+  deletePhoto: () =>
+    apiFetch("/etudiants/me/photo", { method: "DELETE" }).then((r) => r.json()),
   uploadCV: (file: File, consentementIa = true) => {
     const form = new FormData();
     form.append("file", file);

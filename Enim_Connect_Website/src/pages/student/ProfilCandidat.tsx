@@ -145,6 +145,17 @@ export default function ProfilCandidat() {
     finally { setUploadingPhoto(false); }
   }
 
+  async function handleDeletePhoto() {
+    setUploadingPhoto(true);
+    try {
+      await api.deletePhoto();
+      setProfil((p) => p ? { ...p, photo_url: undefined } : p);
+      setPhotoError(false);
+      setSuccess('Photo supprimée');
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Erreur'); }
+    finally { setUploadingPhoto(false); }
+  }
+
   async function handleCvChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return;
     if (!consentementIa) {
@@ -205,6 +216,14 @@ export default function ProfilCandidat() {
                 className="absolute -bottom-2 -right-2 w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white shadow-md hover:opacity-90">
                 <span className="material-symbols-outlined text-sm">{uploadingPhoto ? 'progress_activity' : 'camera_alt'}</span>
               </button>
+              {profil?.photo_url && !photoError && (
+                <button onClick={handleDeletePhoto}
+                  disabled={uploadingPhoto}
+                  className="absolute -bottom-2 -left-2 w-8 h-8 bg-error rounded-full flex items-center justify-center text-white shadow-md hover:opacity-90"
+                  title="Supprimer la photo">
+                  <span className="material-symbols-outlined text-sm">close</span>
+                </button>
+              )}
               <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
             </div>
             <div className="font-headline font-bold text-lg text-on-surface">{profil?.prenom} {profil?.nom}</div>

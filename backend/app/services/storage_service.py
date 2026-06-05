@@ -152,6 +152,13 @@ def read_photo(user_id: str) -> Optional[tuple]:
     return None
 
 
+def delete_photo(user_id: str) -> None:
+    for ext in ("jpg", "jpeg", "png", "webp"):
+        path = os.path.join(settings.STORAGE_PATH, f"photos/{user_id}.{ext}")
+        if os.path.exists(path):
+            os.remove(path)
+
+
 # ── Logos ────────────────────────────────────────────────────────────────────
 
 def save_logo(entreprise_id: str, content: bytes, ext: str = "jpg") -> str:

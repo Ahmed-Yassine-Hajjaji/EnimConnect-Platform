@@ -78,6 +78,20 @@ def upload_photo(
     return {"photo_url": etudiant.photo_url}
 
 
+@router.delete("/me/photo")
+def delete_photo(
+    current_user: User = Depends(get_current_etudiant),
+    db: Session = Depends(get_db),
+):
+    etudiant = db.query(Etudiant).filter(Etudiant.id == current_user.id).first()
+    if not etudiant or not etudiant.photo_url:
+        raise HTTPException(status_code=404, detail="Aucune photo à supprimer")
+    storage_service.delete_photo(str(current_user.id))
+    etudiant.photo_url = None
+    db.commit()
+    return {"ok": True}
+
+
 @router.post("/me/cv")
 @limiter.limit("3/hour")
 def upload_cv(
