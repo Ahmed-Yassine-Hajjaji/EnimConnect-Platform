@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { api, type AnnonceAdmin, type EntrepriseAvecOffres } from '../../api/client';
+import { api, type AnnonceAdmin, type EntrepriseAvecOffres, type DemandeSuppressionItem } from '../../api/client';
 import usePageTitle from '../../hooks/usePageTitle';
 
-type Vue = 'entreprise' | 'offres';
+type Vue = 'entreprise' | 'offres' | 'suppressions';
 type FilterStatut = 'toutes' | 'en_attente' | 'validee' | 'rejetee';
 
 const STATUT = {
@@ -31,6 +31,10 @@ export default function OffresAdmin() {
   // Vue offres
   const [toutesOffres, setToutesOffres] = useState<AnnonceAdmin[]>([]);
 
+  // Vue suppressions
+  const [demandes, setDemandes] = useState<DemandeSuppressionItem[]>([]);
+  const [loadingDemandes, setLoadingDemandes] = useState(false);
+
   // Commun
   const [loading, setLoading] = useState(true);
   const [selectedOffre, setSelectedOffre] = useState<AnnonceAdmin | null>(null);
@@ -39,6 +43,11 @@ export default function OffresAdmin() {
   const [searchOffre, setSearchOffre] = useState('');
   const [filterStatut, setFilterStatut] = useState<FilterStatut>('toutes');
 
+  // Load demandes count on mount for badge
+  useEffect(() => {
+    api.getDemandesSuppression().then(setDemandes).catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (vue === 'entreprise') {
       setLoading(true);
@@ -46,12 +55,18 @@ export default function OffresAdmin() {
         .then(setEntreprises)
         .catch(console.error)
         .finally(() => setLoading(false));
-    } else {
+    } else if (vue === 'offres') {
       setLoading(true);
       api.getClubAnnoncesDetaillees()
         .then(setToutesOffres)
         .catch(console.error)
         .finally(() => setLoading(false));
+    } else {
+      setLoadingDemandes(true);
+      api.getDemandesSuppression()
+        .then(setDemandes)
+        .catch(console.error)
+        .finally(() => setLoadingDemandes(false));
     }
   }, [vue]);
 
@@ -100,9 +115,9 @@ export default function OffresAdmin() {
     setSuppressionLoading(true);
     try {
       await api.approuverSuppression(offre.id);
-      // Remove from lists
       setOffresEntreprise((prev) => prev.filter((o) => o.id !== offre.id));
       setToutesOffres((prev) => prev.filter((o) => o.id !== offre.id));
+      setDemandes((prev) => prev.filter((d) => d.id !== offre.id));
       setSelectedOffre(null);
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Erreur');
@@ -119,7 +134,34 @@ export default function OffresAdmin() {
       const updated = { ...offre, suppression_demandee: false };
       setOffresEntreprise((prev) => prev.map((o) => (o.id === offre.id ? updated : o)));
       setToutesOffres((prev) => prev.map((o) => (o.id === offre.id ? updated : o)));
+      setDemandes((prev) => prev.filter((d) => d.id !== offre.id));
       setSelectedOffre(updated);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Erreur');
+    } finally {
+      setSuppressionLoading(false);
+    }
+  }
+
+  async function handleApprouverDemande(id: string) {
+    if (!confirm('Approuver la suppression ? L\'offre sera définitivement supprimée et les candidats seront notifiés.')) return;
+    setSuppressionLoading(true);
+    try {
+      await api.approuverSuppression(id);
+      setDemandes((prev) => prev.filter((d) => d.id !== id));
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Erreur');
+    } finally {
+      setSuppressionLoading(false);
+    }
+  }
+
+  async function handleRejeterDemande(id: string) {
+    if (!confirm('Refuser la demande de suppression ? L\'offre restera active.')) return;
+    setSuppressionLoading(true);
+    try {
+      await api.rejeterSuppression(id);
+      setDemandes((prev) => prev.filter((d) => d.id !== id));
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Erreur');
     } finally {
@@ -177,6 +219,22 @@ export default function OffresAdmin() {
           >
             <span className="material-symbols-outlined text-base">work</span>
             Par offres
+          </button>
+          <button
+            onClick={() => switchVue('suppressions')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              vue === 'suppressions'
+                ? 'bg-white shadow-sm text-on-surface'
+                : 'text-on-surface-variant hover:text-on-surface'
+            }`}
+          >
+            <span className="material-symbols-outlined text-base">delete_sweep</span>
+            Demandes de suppression
+            {demandes.length > 0 && (
+              <span className="min-w-[20px] h-5 bg-error text-white text-[11px] font-bold rounded-full flex items-center justify-center px-1.5">
+                {demandes.length}
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -353,7 +411,7 @@ export default function OffresAdmin() {
             )}
           </div>
         </div>
-      ) : (
+      ) : vue === 'offres' ? (
         /* ── Vue Par offres ── */
         <div className="px-4 sm:px-6 lg:px-10 pb-10 flex-1 flex flex-col gap-4">
           {/* Filtres */}
@@ -454,6 +512,90 @@ export default function OffresAdmin() {
                   })}
                 </tbody>
               </table>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* ── Vue Demandes de suppression ── */
+        <div className="px-4 sm:px-6 lg:px-10 pb-10 flex-1 flex flex-col gap-4">
+          <p className="text-sm text-on-surface-variant">
+            Les entreprises peuvent demander la suppression de leurs offres actives. Vous devez approuver ou refuser chaque demande.
+          </p>
+
+          <div className="bg-surface-container-low border border-outline-variant rounded-2xl overflow-hidden">
+            {loadingDemandes ? (
+              <div className="flex items-center justify-center py-16">
+                <span className="material-symbols-outlined animate-spin text-3xl text-on-surface-variant">progress_activity</span>
+              </div>
+            ) : demandes.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+                <span className="material-symbols-outlined text-5xl text-on-surface-variant mb-3">check_circle</span>
+                <p className="font-semibold text-on-surface mb-1">Aucune demande en attente</p>
+                <p className="text-sm text-on-surface-variant">Il n'y a actuellement aucune demande de suppression d'offre.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-outline-variant">
+                {demandes.map((d) => (
+                  <div key={d.id} className="p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="material-symbols-outlined text-orange-500 text-lg">warning</span>
+                        <h3 className="font-semibold text-on-surface text-sm truncate">{d.titre}</h3>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-on-surface-variant flex-wrap">
+                        {d.nom_entreprise && (
+                          <span className="flex items-center gap-1">
+                            <span className="material-symbols-outlined text-xs">business</span>
+                            {d.nom_entreprise}
+                          </span>
+                        )}
+                        {d.ville && (
+                          <span className="flex items-center gap-1">
+                            <span className="material-symbols-outlined text-xs">location_on</span>
+                            {d.ville}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1">
+                          <span className="material-symbols-outlined text-xs">school</span>
+                          {d.departements.join(', ')}
+                        </span>
+                        {d.duree_mois && (
+                          <span className="flex items-center gap-1">
+                            <span className="material-symbols-outlined text-xs">schedule</span>
+                            {d.duree_mois} mois
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1">
+                          <span className="material-symbols-outlined text-xs">calendar_today</span>
+                          {new Date(d.created_at).toLocaleDateString('fr-FR')}
+                        </span>
+                        <span className="flex items-center gap-1 font-medium text-primary">
+                          <span className="material-symbols-outlined text-xs">people</span>
+                          {d.nb_candidatures} candidature{d.nb_candidatures !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => handleApprouverDemande(d.id)}
+                        disabled={suppressionLoading}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                      >
+                        <span className="material-symbols-outlined text-sm">check</span>
+                        Approuver
+                      </button>
+                      <button
+                        onClick={() => handleRejeterDemande(d.id)}
+                        disabled={suppressionLoading}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-white text-on-surface text-xs font-semibold rounded-lg border border-outline-variant hover:bg-surface-container transition-colors disabled:opacity-50"
+                      >
+                        <span className="material-symbols-outlined text-sm">close</span>
+                        Refuser
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>

@@ -94,24 +94,14 @@ export default function NotificationBell() {
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-outline-variant">
             <span className="font-semibold text-on-surface text-sm">Notifications</span>
-            <div className="flex items-center gap-3">
-              {unread > 0 && (
-                <button
-                  onClick={markAllRead}
-                  className="text-xs text-primary hover:underline font-medium"
-                >
-                  Tout marquer comme lu
-                </button>
-              )}
-              {notifications.length > 0 && (
-                <button
-                  onClick={removeAll}
-                  className="text-xs text-error hover:underline font-medium"
-                >
-                  Tout supprimer
-                </button>
-              )}
-            </div>
+            {unread > 0 && (
+              <button
+                onClick={markAllRead}
+                className="text-xs text-primary hover:underline font-medium"
+              >
+                Tout marquer comme lu
+              </button>
+            )}
           </div>
 
           {/* List */}
@@ -168,6 +158,19 @@ export default function NotificationBell() {
               ))
             )}
           </div>
+
+          {/* Footer — Tout supprimer */}
+          {notifications.length > 0 && (
+            <div className="border-t border-outline-variant px-4 py-2.5">
+              <button
+                onClick={removeAll}
+                className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-error hover:bg-red-50 rounded-lg py-2 transition-colors"
+              >
+                <span className="material-symbols-outlined text-sm">delete_sweep</span>
+                Tout supprimer
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
