@@ -35,6 +35,7 @@ export default function OffresAdmin() {
   const [loading, setLoading] = useState(true);
   const [selectedOffre, setSelectedOffre] = useState<AnnonceAdmin | null>(null);
   const [toggling, setToggling] = useState<string | null>(null);
+  const [suppressionLoading, setSuppressionLoading] = useState(false);
   const [searchOffre, setSearchOffre] = useState('');
   const [filterStatut, setFilterStatut] = useState<FilterStatut>('toutes');
 
@@ -91,6 +92,38 @@ export default function OffresAdmin() {
       alert(err instanceof Error ? err.message : 'Erreur');
     } finally {
       setToggling(null);
+    }
+  }
+
+  async function handleApprouverSuppression(offre: AnnonceAdmin) {
+    if (!confirm('Approuver la suppression ? L\'offre sera définitivement supprimée et les candidats seront notifiés.')) return;
+    setSuppressionLoading(true);
+    try {
+      await api.approuverSuppression(offre.id);
+      // Remove from lists
+      setOffresEntreprise((prev) => prev.filter((o) => o.id !== offre.id));
+      setToutesOffres((prev) => prev.filter((o) => o.id !== offre.id));
+      setSelectedOffre(null);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Erreur');
+    } finally {
+      setSuppressionLoading(false);
+    }
+  }
+
+  async function handleRejeterSuppression(offre: AnnonceAdmin) {
+    if (!confirm('Refuser la demande de suppression ? L\'offre restera active.')) return;
+    setSuppressionLoading(true);
+    try {
+      await api.rejeterSuppression(offre.id);
+      const updated = { ...offre, suppression_demandee: false };
+      setOffresEntreprise((prev) => prev.map((o) => (o.id === offre.id ? updated : o)));
+      setToutesOffres((prev) => prev.map((o) => (o.id === offre.id ? updated : o)));
+      setSelectedOffre(updated);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Erreur');
+    } finally {
+      setSuppressionLoading(false);
     }
   }
 
@@ -282,6 +315,12 @@ export default function OffresAdmin() {
                             <tr key={o.id} className="hover:bg-surface-container/50 transition-colors">
                               <td className="px-5 py-3">
                                 <div className="font-medium text-sm text-on-surface">{o.titre}</div>
+                                {o.suppression_demandee && (
+                                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 border border-orange-200 mt-0.5 inline-flex items-center gap-0.5">
+                                    <span className="material-symbols-outlined text-[10px]">warning</span>
+                                    Suppression demandée
+                                  </span>
+                                )}
                               </td>
                               <td className="px-5 py-3 text-xs text-on-surface-variant">{o.departement}</td>
                               <td className="px-5 py-3 text-xs text-on-surface-variant">{o.duree_mois ? `${o.duree_mois} mois` : '—'}</td>
@@ -383,6 +422,12 @@ export default function OffresAdmin() {
                       <tr key={o.id} className="hover:bg-surface-container/50 transition-colors">
                         <td className="px-5 py-4">
                           <div className="font-medium text-sm text-on-surface">{o.titre}</div>
+                          {o.suppression_demandee && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 border border-orange-200 mt-0.5 inline-flex items-center gap-0.5">
+                              <span className="material-symbols-outlined text-[10px]">warning</span>
+                              Suppression demandée
+                            </span>
+                          )}
                         </td>
                         <td className="px-5 py-4 text-sm text-on-surface-variant">{o.nom_entreprise ?? '—'}</td>
                         <td className="px-5 py-4 text-xs text-on-surface-variant">{o.departement}</td>
@@ -422,6 +467,9 @@ export default function OffresAdmin() {
           toggling={toggling === selectedOffre.id}
           onClose={() => setSelectedOffre(null)}
           onToggle={() => handleToggleActif(selectedOffre)}
+          onApprouverSuppression={() => handleApprouverSuppression(selectedOffre)}
+          onRejeterSuppression={() => handleRejeterSuppression(selectedOffre)}
+          suppressionLoading={suppressionLoading}
         />
       )}
     </main>
@@ -435,11 +483,17 @@ function OffreDetailModal({
   toggling,
   onClose,
   onToggle,
+  onApprouverSuppression,
+  onRejeterSuppression,
+  suppressionLoading,
 }: {
   offre: AnnonceAdmin;
   toggling: boolean;
   onClose: () => void;
   onToggle: () => void;
+  onApprouverSuppression: () => void;
+  onRejeterSuppression: () => void;
+  suppressionLoading: boolean;
 }) {
   const s = STATUT[offre.statut];
 
@@ -471,10 +525,47 @@ function OffreDetailModal({
             <span className={`text-sm font-semibold px-3 py-1.5 rounded-xl ${offre.is_active ? 'bg-green-50 text-green-700' : 'bg-surface-container text-on-surface-variant'}`}>
               {offre.is_active ? 'Visible par les étudiants' : 'Masquée'}
             </span>
+            {offre.suppression_demandee && (
+              <span className="text-sm font-semibold px-3 py-1.5 rounded-xl bg-orange-50 text-orange-600 border border-orange-200 flex items-center gap-1">
+                <span className="material-symbols-outlined text-base">warning</span>
+                Suppression demandée
+              </span>
+            )}
             <span className="text-xs text-on-surface-variant ml-auto">
               Soumise le {new Date(offre.created_at).toLocaleDateString('fr-FR')}
             </span>
           </div>
+
+          {/* Suppression request banner */}
+          {offre.suppression_demandee && (
+            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="material-symbols-outlined text-orange-600">delete_sweep</span>
+                <h3 className="text-sm font-semibold text-orange-800">Demande de suppression</h3>
+              </div>
+              <p className="text-xs text-orange-700 mb-3">
+                L'entreprise a demandé la suppression de cette offre. Approuver supprimera l'offre et notifiera tous les candidats. Refuser maintiendra l'offre active.
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={onApprouverSuppression}
+                  disabled={suppressionLoading}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-sm">check</span>
+                  Approuver la suppression
+                </button>
+                <button
+                  onClick={onRejeterSuppression}
+                  disabled={suppressionLoading}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-white text-on-surface text-xs font-semibold rounded-lg border border-outline-variant hover:bg-surface-container transition-colors disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-sm">close</span>
+                  Refuser
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Description */}
           <div>

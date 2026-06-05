@@ -304,6 +304,12 @@ export default function MesOffres() {
                     </div>
 
                     <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
+                      {a.suppression_demandee && (
+                        <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-orange-50 text-orange-600 border border-orange-200 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-sm">pending</span>
+                          Suppression en cours
+                        </span>
+                      )}
                       {nbValides > 0 && (
                         <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-green-50 text-green-600 border border-green-200">
                           {nbValides} validé{nbValides > 1 ? "s" : ""}

@@ -32,11 +32,15 @@ export default function DashboardEntreprise() {
     if (!confirm(msg)) return;
     setDeletingId(id);
     try {
-      const res = await api.supprimerAnnonce(id) as any;
+      const res = await api.supprimerAnnonce(id);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Erreur" }));
+        throw new Error(err.detail ?? "Erreur");
+      }
+      const data = await res.json();
       if (annonce?.statut === "validee") {
-        // Demande envoyée, mettre à jour l'état local
         setAnnonces((prev) => prev.map((a) => a.id === id ? { ...a, suppression_demandee: true } : a));
-        alert(res?.message ?? "Demande de suppression envoyée.");
+        alert(data?.message ?? "Demande de suppression envoyée.");
       } else {
         setAnnonces((prev) => prev.filter((a) => a.id !== id));
       }
