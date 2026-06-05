@@ -62,7 +62,7 @@ def serve_photo(user_id: str):
     if not result:
         raise HTTPException(status_code=404, detail="Photo introuvable")
     content, content_type = result
-    return Response(content=content, media_type=content_type, headers={"Cache-Control": "public, max-age=3600"})
+    return Response(content=content, media_type=content_type, headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/api/logos/{entreprise_id}")
@@ -71,7 +71,7 @@ def serve_logo(entreprise_id: str):
     if not result:
         raise HTTPException(status_code=404, detail="Logo introuvable")
     content, content_type = result
-    return Response(content=content, media_type=content_type, headers={"Cache-Control": "public, max-age=3600"})
+    return Response(content=content, media_type=content_type, headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/health")
