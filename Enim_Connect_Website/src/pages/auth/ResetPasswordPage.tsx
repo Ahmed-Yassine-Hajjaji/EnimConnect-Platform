@@ -19,12 +19,18 @@ export default function ResetPasswordPage() {
     e.preventDefault();
     setError(null);
     setSuccess(null);
-    if (password !== confirm) {
-      setError("Les mots de passe ne correspondent pas.");
+    const missing: string[] = [];
+    if (password.length < 8) missing.push("au moins 8 caractères");
+    if (!/[A-Z]/.test(password)) missing.push("une majuscule");
+    if (!/[a-z]/.test(password)) missing.push("une minuscule");
+    if (!/\d/.test(password)) missing.push("un chiffre");
+    if (!/[^A-Za-z0-9]/.test(password)) missing.push("un caractère spécial (!@#$...)");
+    if (missing.length) {
+      setError("Le mot de passe doit contenir : " + missing.join(", ") + ".");
       return;
     }
-    if (password.length < 8) {
-      setError("Le mot de passe doit contenir au moins 8 caractères.");
+    if (password !== confirm) {
+      setError("Les mots de passe ne correspondent pas.");
       return;
     }
     setLoading(true);
@@ -103,11 +109,30 @@ export default function ResetPasswordPage() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Au moins 8 caractères"
+                  placeholder="Mot de passe fort"
                   required
                   className="flex-1 bg-transparent text-sm text-on-surface placeholder-on-surface-variant outline-none"
                 />
               </div>
+              {password && (
+                <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
+                  {[
+                    { ok: password.length >= 8, label: "8 caractères min." },
+                    { ok: /[A-Z]/.test(password), label: "Une majuscule" },
+                    { ok: /[a-z]/.test(password), label: "Une minuscule" },
+                    { ok: /\d/.test(password), label: "Un chiffre" },
+                    { ok: /[^A-Za-z0-9]/.test(password), label: "Un caractère spécial" },
+                  ].map((r) => (
+                    <div key={r.label} className="flex items-center gap-1.5 text-[11px]">
+                      <span className={`material-symbols-outlined text-xs ${r.ok ? "text-green-600" : "text-on-surface-variant/40"}`}
+                        style={{ fontVariationSettings: "'FILL' 1" }}>
+                        {r.ok ? "check_circle" : "circle"}
+                      </span>
+                      <span className={r.ok ? "text-green-700" : "text-on-surface-variant"}>{r.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div>

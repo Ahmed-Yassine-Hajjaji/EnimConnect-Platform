@@ -27,6 +27,29 @@ from google.oauth2 import id_token as google_id_token
 from google.auth.transport import requests as google_requests
 
 
+import re
+
+
+def validate_strong_password(pwd: str):
+    """Vérifie qu'un mot de passe est fort. Lève HTTPException sinon."""
+    errors = []
+    if len(pwd) < 8:
+        errors.append("au moins 8 caractères")
+    if not re.search(r"[A-Z]", pwd):
+        errors.append("une lettre majuscule")
+    if not re.search(r"[a-z]", pwd):
+        errors.append("une lettre minuscule")
+    if not re.search(r"\d", pwd):
+        errors.append("un chiffre")
+    if not re.search(r"[^A-Za-z0-9]", pwd):
+        errors.append("un caractère spécial (!@#$...)")
+    if errors:
+        raise HTTPException(
+            status_code=400,
+            detail="Le mot de passe doit contenir : " + ", ".join(errors) + ".",
+        )
+
+
 class ChangePasswordRequest(BaseModel):
     ancien_mot_de_passe: str
     nouveau_mot_de_passe: str
@@ -41,6 +64,8 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/hour")
 def register(request: Request, body: RegisterRequest, db: Session = Depends(get_db)):
+    validate_strong_password(body.password)
+
     existing = db.query(User).filter(User.email == body.email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email déjà utilisé")
@@ -187,11 +212,7 @@ def reset_password(
             status_code=400,
             detail="Lien invalide ou expiré. Veuillez refaire une demande de réinitialisation.",
         )
-    if len(body.nouveau_mot_de_passe) < 8:
-        raise HTTPException(
-            status_code=400,
-            detail="Le mot de passe doit contenir au moins 8 caractères",
-        )
+    validate_strong_password(body.nouveau_mot_de_passe)
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user or not user.is_active:
@@ -225,8 +246,7 @@ def force_change_password(
     """Changement obligatoire lors de la première connexion."""
     if not current_user.must_change_password:
         raise HTTPException(status_code=400, detail="Aucun changement de mot de passe requis")
-    if len(body.nouveau_mot_de_passe) < 8:
-        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins 8 caractères")
+    validate_strong_password(body.nouveau_mot_de_passe)
     current_user.password_hash = hash_password(body.nouveau_mot_de_passe)
     current_user.must_change_password = False
     db.commit()
@@ -247,8 +267,7 @@ def change_password(
 ):
     if not verify_password(body.ancien_mot_de_passe, current_user.password_hash):
         raise HTTPException(status_code=400, detail="Mot de passe actuel incorrect")
-    if len(body.nouveau_mot_de_passe) < 8:
-        raise HTTPException(status_code=400, detail="Le nouveau mot de passe doit contenir au moins 8 caractères")
+    validate_strong_password(body.nouveau_mot_de_passe)
     current_user.password_hash = hash_password(body.nouveau_mot_de_passe)
     current_user.must_change_password = False
     db.commit()
