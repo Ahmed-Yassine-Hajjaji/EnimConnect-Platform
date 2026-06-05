@@ -69,7 +69,7 @@ projetFederateur/
 │   │   │   └── embed_annonce.py      # Background: annonce → embedding
 │   │   └── middleware/
 │   │       └── auth_middleware.py     # JWT dependencies FastAPI
-│   ├── alembic/                 # Migrations (001→005)
+│   ├── alembic/                 # Migrations (001→008)
 │   ├── storage/                 # Fichiers uploadés (cvs/, photos/, logos/)
 │   ├── requirements.txt
 │   └── .env.example
@@ -79,10 +79,10 @@ projetFederateur/
 │   │   ├── context/AuthContext.tsx
 │   │   ├── constants/ensmr.ts   # Départements, filières, niveaux ENSMR
 │   │   ├── pages/
-│   │   │   ├── auth/            # Login, Register, Reset Password
+│   │   │   ├── auth/            # Login, Register, Reset Password, ForceChangePassword
 │   │   │   ├── student/         # Dashboard, Recherche, Candidatures, Profil
 │   │   │   ├── company/         # Dashboard, Offres, Candidats, Profil
-│   │   │   ├── admin/           # Entreprises, Offres, Étudiants, Stats
+│   │   │   ├── admin/           # Entreprises, Offres (+ demandes suppression), Étudiants, Stats
 │   │   │   └── DecisionPage.tsx # Interface chef de département
 │   │   └── components/
 │   │       ├── layout/          # Layouts avec auth guard par rôle
@@ -176,7 +176,7 @@ Entreprise notifiée à chaque décision (in-app + email via N8n)
 ### Notifications in-app
 - Stockées en base, affichées via icône cloche dans le header
 - Tri : non lues en premier, puis par date décroissante (max 50)
-- Actions : marquer comme lu, marquer tout lu, supprimer
+- Actions : marquer comme lu, marquer tout lu, supprimer, supprimer tout
 
 ### Événements notifiés
 
@@ -187,6 +187,8 @@ Entreprise notifiée à chaque décision (in-app + email via N8n)
 | Nouvelle offre soumise | Tous les membres du club |
 | Offre validée/rejetée (par chef) | L'entreprise concernée |
 | Nouveau candidat sur une offre | L'entreprise propriétaire |
+| Demande de suppression d'offre | Tous les membres du club |
+| Suppression approuvée/refusée | L'entreprise + les étudiants candidats |
 
 ### Notifications email (via N8n)
 - Email aux chefs de département avec liens de décision
@@ -207,8 +209,9 @@ Le stockage est configurable via `STORAGE_BACKEND` (`local` ou `s3`) :
 | Logos | `./storage/logos/{entreprise_id}.{ext}` | — (local uniquement) |
 
 - **CVs** : servis via endpoint protégé `/api/cv/{id}` (JWT requis, contrôle d'accès par rôle)
-- **Photos/Logos** : servis via montage statique `/storage/photos/` et `/storage/logos/`
-- En mode S3 : le PDF est streamé à travers le backend (évite les problèmes CORS)
+- **Photos** : servis via `/api/photos/{id}` (endpoint dédié)
+- **Logos** : servis via `/api/logos/{id}` (endpoint dédié)
+- En mode S3 : les fichiers sont streamés à travers le backend (évite les problèmes CORS)
 
 ### Contraintes d'upload
 
@@ -224,13 +227,15 @@ Le stockage est configurable via `STORAGE_BACKEND` (`local` ou `s3`) :
 
 ### Auth (`/auth`)
 ```
-POST /auth/register          {email, password, role}
-POST /auth/login             {email, password} → {access_token, refresh_token}
-POST /auth/refresh           {refresh_token} → {access_token}
+POST /auth/register              {email, password, role}
+POST /auth/login                 {email, password} → {access_token, refresh_token}
+POST /auth/google                {credential} → Google OAuth @enim.ac.ma uniquement
+POST /auth/refresh               {refresh_token} → {access_token}
 POST /auth/logout
-POST /auth/forgot-password   {email} → email avec lien de reset (1h)
-POST /auth/reset-password    {token, nouveau_mot_de_passe}
-PUT  /auth/change-password   {ancien_mot_de_passe, nouveau_mot_de_passe}
+POST /auth/forgot-password       {email} → email avec lien de reset (1h)
+POST /auth/reset-password        {token, nouveau_mot_de_passe}
+PUT  /auth/change-password       {ancien_mot_de_passe, nouveau_mot_de_passe}
+PUT  /auth/force-change-password {nouveau_mot_de_passe} → 1ère connexion obligatoire
 ```
 
 ### Étudiant (`/etudiants`, JWT rôle: etudiant)
@@ -301,6 +306,11 @@ PUT  /club/annonces/{id}/valider
 PUT  /club/annonces/{id}/rejeter
 PUT  /club/annonces/{id}/toggle-actif
 
+# Demandes de suppression d'offres
+GET  /club/demandes-suppression
+PUT  /club/annonces/{id}/approuver-suppression
+PUT  /club/annonces/{id}/rejeter-suppression
+
 # Stats
 GET  /club/stats
 GET  /club/stats/etudiants
@@ -308,11 +318,12 @@ GET  /club/stats/etudiants
 
 ### Notifications (`/notifications`, JWT requis)
 ```
-GET  /notifications
-GET  /notifications/non-lues
-POST /notifications/{id}/lire
-POST /notifications/lire-tout
+GET    /notifications
+GET    /notifications/non-lues
+POST   /notifications/{id}/lire
+POST   /notifications/lire-tout
 DELETE /notifications/{id}
+DELETE /notifications              (supprimer toutes les notifications)
 ```
 
 ---
@@ -320,15 +331,20 @@ DELETE /notifications/{id}
 ## Sécurité
 
 ### Authentification
-- Mots de passe : **bcrypt**
+- Mots de passe : **bcrypt** avec politique de force obligatoire (8+ chars, majuscule, minuscule, chiffre, caractère spécial)
+- **Changement obligatoire** à la première connexion pour les comptes créés par l'admin (flag `must_change_password` + claim JWT `mcp`)
 - JWT : HS256, access token 30min, refresh token 7j
 - Refresh token ne retourne qu'un nouveau access token
 - Recherche email insensible à la casse (login + reset)
+- Google OAuth : réservé aux étudiants avec email `@enim.ac.ma`
 
 ### Rate limiting (slowapi)
 
 | Endpoint | Limite |
 |---|---|
+| `POST /auth/register` | 5/heure |
+| `POST /auth/login` | 10/minute |
+| `POST /auth/google` | 10/minute |
 | `POST /auth/forgot-password` | 3/heure |
 | `POST /auth/reset-password` | 5/heure |
 | `POST /etudiants/me/cv` | 3/heure |
@@ -344,6 +360,7 @@ DELETE /notifications/{id}
 - Entreprise non validée → 403 même avec JWT valide
 - CV : étudiant (son propre CV), entreprise validée, club uniquement
 - Score IA jamais exposé dans les réponses API
+- Emails étudiants : validation du domaine `@enim.ac.ma` (création + import CSV)
 
 ### Validation fichiers
 - CV : Content-Type `application/pdf` + octets magiques `%PDF-` + taille max 10 Mo
@@ -475,31 +492,120 @@ L'application est disponible sur `http://localhost:5173`
 
 ---
 
-## Déploiement — Docker Compose (production)
+## Déploiement — AWS + Docker + DuckDNS + Let's Encrypt
 
-### Architecture
+### Infrastructure
+
+La plateforme est déployée sur une **instance AWS EC2** avec HTTPS automatique :
+
+| Composant | Technologie | Rôle |
+|---|---|---|
+| Serveur | AWS EC2 (Ubuntu) | Hébergement de tous les services |
+| DNS dynamique | DuckDNS | Domaine `enimconnect.duckdns.org` pointant vers l'IP publique EC2 |
+| Certificat SSL | Let's Encrypt (Certbot) | HTTPS gratuit avec renouvellement automatique |
+| Reverse proxy | Nginx | Terminaison SSL, routage frontend/backend/N8n |
+| Conteneurisation | Docker Compose | Orchestration des 3 services |
+
+### Architecture réseau
 
 ```
-Internet → Nginx (port 80/443, SSL Let's Encrypt)
-           ├── /* → Frontend React (build statique)
-           └── /api/*, /auth/*, ... → Backend FastAPI (:8000)
-                                       └── N8n (:5678, réseau interne Docker)
+Client (navigateur)
+    │
+    │  HTTPS :443
+    ▼
+┌──────────────────────────────────────────────────────┐
+│  AWS EC2                                             │
+│                                                      │
+│  ┌─────────────────────────────────────────────────┐ │
+│  │  Nginx (conteneur frontend)                     │ │
+│  │  - SSL termination (Let's Encrypt)              │ │
+│  │  - Sert le build React statique                 │ │
+│  │  - Reverse proxy vers backend & N8n             │ │
+│  │  - Gzip + cache assets statiques (1 an)         │ │
+│  │  - Redirection HTTP → HTTPS automatique         │ │
+│  └─────┬────────────────────┬──────────────────────┘ │
+│        │                    │                         │
+│        │ /api, /auth,       │ /webhook/               │
+│        │ /etudiants, ...    │                         │
+│        ▼                    ▼                         │
+│  ┌───────────┐       ┌───────────┐                   │
+│  │  Backend   │       │    N8n    │                   │
+│  │  FastAPI   │       │  :5678   │                   │
+│  │  :8000     │       │ (interne)│                   │
+│  └───────────┘       └───────────┘                   │
+│                                                      │
+└──────────────────────────────────────────────────────┘
 ```
 
-### Services
+### Services Docker
 
-| Service | Image | Ports exposés | Volumes |
+| Service | Image | Ports | Volumes |
 |---|---|---|---|
-| `backend` | FastAPI (Dockerfile) | 8000 (interne) | `backend_storage` (CVs, photos, logos) |
-| `frontend` | Nginx + Vite build | 80, 443 | `/etc/letsencrypt` (ro) |
+| `backend` | Python 3.11 + FastAPI | 8000 (interne) | `backend_storage` (CVs, photos, logos) |
+| `frontend` | Node 20 (build) + Nginx (prod) | 80, 443 | `/etc/letsencrypt` (lecture seule) |
 | `n8n` | n8nio/n8n:latest | 5678 (interne) | `n8n_data` |
 
-### Lancer en production
+Le frontend utilise un **multi-stage build** : Node.js compile le projet React/Vite, puis Nginx sert les fichiers statiques et agit comme reverse proxy.
+
+### Configuration DuckDNS
+
+DuckDNS fournit un sous-domaine gratuit qui pointe vers l'IP publique de l'instance EC2. Un cron job met à jour l'IP automatiquement :
 
 ```bash
+# Cron toutes les 5 minutes pour mettre à jour l'IP DuckDNS
+*/5 * * * * curl -s "https://www.duckdns.org/update?domains=enimconnect&token=VOTRE_TOKEN&ip=" > /dev/null
+```
+
+### Certificat SSL — Let's Encrypt
+
+Le certificat HTTPS est généré via **Certbot** en mode standalone avant le premier déploiement :
+
+```bash
+# Installation de Certbot
+sudo apt install certbot
+
+# Génération du certificat (ports 80/443 doivent être libres)
+sudo certbot certonly --standalone -d enimconnect.duckdns.org
+
+# Le certificat est stocké dans /etc/letsencrypt/live/enimconnect.duckdns.org/
+# - fullchain.pem (certificat + chaîne)
+# - privkey.pem   (clé privée)
+```
+
+Le renouvellement est automatique via le timer systemd de Certbot. Nginx charge les certificats en lecture seule depuis le volume monté.
+
+### Routage Nginx
+
+| Chemin | Destination | Description |
+|---|---|---|
+| `/` | Build React statique | SPA avec fallback `index.html` |
+| `/auth/*`, `/api/*`, `/etudiants/*`, ... | `backend:8000` | API FastAPI |
+| `/storage/*` | `backend:8000` | Fichiers statiques (photos, logos) |
+| `/webhook/*` | `n8n:5678` | Webhooks N8n (validation chefs) |
+
+### Déploiement
+
+Le script `deploy.sh` automatise tout le processus :
+
+```bash
+./deploy.sh
+```
+
+Il effectue les étapes suivantes :
+1. `git pull origin main` — récupère le dernier code
+2. `docker compose down` — arrête les services
+3. `docker compose up -d --build` — rebuild et redémarre
+4. Attend 15 secondes le démarrage du backend
+5. `alembic upgrade head` — applique les migrations en attente
+6. `seed_chefs.py` — met à jour les chefs de département
+
+### Lancer manuellement
+
+```bash
+# Build et démarrage
 docker compose -f docker-compose.prod.yml up -d --build
 
-# Appliquer les migrations (après le premier démarrage)
+# Appliquer les migrations
 docker compose -f docker-compose.prod.yml exec backend alembic upgrade head
 ```
 
@@ -512,3 +618,6 @@ docker compose -f docker-compose.prod.yml exec backend alembic upgrade head
 | 003 | Validation multi-département des annonces |
 | 004 | Champs IA structurés + index HNSW pgvector pour le matching |
 | 005 | Champ `logo_url` pour les entreprises |
+| 006 | Champ `suppression_demandee` pour les annonces |
+| 007 | Champ `must_change_password` pour les utilisateurs |
+| 008 | Migration des URLs de stockage `/storage/` → `/api/` |
