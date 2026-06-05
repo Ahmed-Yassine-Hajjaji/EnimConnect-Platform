@@ -1,4 +1,4 @@
-"""fix remaining storage URLs not caught by migration 008
+"""reset broken logo/photo URLs so companies can re-upload
 
 Revision ID: 009
 Revises: 008
@@ -14,24 +14,10 @@ depends_on = None
 
 def upgrade():
     conn = op.get_bind()
-    # Fix any logo_url still not in /api/logos/ format
-    conn.execute(
-        sa.text("""
-            UPDATE entreprises
-            SET logo_url = '/api/logos/' || id::text
-            WHERE logo_url IS NOT NULL
-              AND logo_url NOT LIKE '/api/logos/%'
-        """)
-    )
-    # Fix any photo_url still not in /api/photos/ format
-    conn.execute(
-        sa.text("""
-            UPDATE etudiants
-            SET photo_url = '/api/photos/' || id::text
-            WHERE photo_url IS NOT NULL
-              AND photo_url NOT LIKE '/api/photos/%'
-        """)
-    )
+    # Reset all logo_url — companies will re-upload
+    conn.execute(sa.text("UPDATE entreprises SET logo_url = NULL WHERE logo_url IS NOT NULL"))
+    # Reset all photo_url — students will re-upload
+    conn.execute(sa.text("UPDATE etudiants SET photo_url = NULL WHERE photo_url IS NOT NULL"))
 
 
 def downgrade():
